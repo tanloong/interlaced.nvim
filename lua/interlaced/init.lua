@@ -3,8 +3,10 @@ local keymap = vim.keymap.set
 local setline = vim.fn.setline
 local getline = vim.fn.getline
 local fn = vim.fn
+local api = vim.api
 
-local function append_to_3_lines_above(lineno)
+local utils = {}
+function utils.append_to_3_lines_above(lineno)
     local lineno_minus3 = lineno - 3
     local lineno_minus1 = lineno - 1
     local line = getline(lineno)
@@ -17,20 +19,23 @@ local function append_to_3_lines_above(lineno)
     setline(lineno, "")
 end
 
-local function delete_trailing_empty_lines()
+function utils.delete_trailing_empty_lines()
     local last_lineno = fn.line("$")
-    local buf = vim.api.nvim_get_current_buf()
+    local buf = api.nvim_get_current_buf()
     while string.match(getline(last_lineno), "^%s*$") do
         fn.deletebufline(buf, last_lineno)
         last_lineno = last_lineno - 1
     end
 end
 
-local function move_line_up()
+function utils.InterlacedJoinUp()
     local lineno = fn.line(".")
-    if lineno <= 3 then return end
+    if lineno <= 3 then
+        print("[interlaced.nvim] Joining too early, please move down your cursor.")
+        return
+    end
 
-    append_to_3_lines_above(lineno)
+    utils.append_to_3_lines_above(lineno)
 
     lineno = lineno + 3
     local last_lineno = fn.line("$")
@@ -40,11 +45,11 @@ local function move_line_up()
     end
     setline(lineno - 3, "")
 
-    delete_trailing_empty_lines()
+    utils.delete_trailing_empty_lines()
     vim.cmd("w")
 end
 
-local function split_after_cursor()
+function utils.InterlacedSplitDownAtCursor()
     local lineno = fn.line(".")
     local last_lineno = fn.line("$")
 
@@ -68,26 +73,53 @@ local function split_after_cursor()
     setline(lineno, fn.substitute(before_cursor, [[\s\+$]], "", ""))
     setline(lineno + 3, fn.substitute(after_cursor, [[^\s\+]], "", ""))
 
-    delete_trailing_empty_lines()
+    utils.delete_trailing_empty_lines()
     vim.cmd("w")
 end
 
-local function move_line_down()
+function utils.InterlacedSplitDownTheWholeLine()
     vim.cmd([[normal! 0]])
-    split_after_cursor()
+    utils.InterlacedSplitDownAtCursor()
 end
 
-local function setup()
-    local mappings = {
-        { mode = "n", from = ",", to = move_line_up },
-        { mode = "n", from = "d", to = split_after_cursor },
-        { mode = "n", from = "D", to = move_line_down },
-        { mode = "n", from = "K", to = "3k" },
-        { mode = "n", from = "J", to = "3j" }
+function utils.InterlacedNavDown()
+    vim.cmd([[normal! 3j]])
+end
+
+function utils.InterlacedNavUp()
+    vim.cmd([[normal! 3k]])
+end
+
+local function setup_global_mappings(user_conf)
+    local config = {
+        ["InterlacedJoinUp"] = [[,]],
+        ["InterlacedSplitDownAtCursor"] = [[d]],
+        ["InterlacedSplitDownTheWholeLine"] = [[D]],
+        ["InterlacedNavDown"] = [[3j]],
+        ["InterlacedNavUp"] = [[3k]]
     }
-    for _, mapping in ipairs(mappings) do
-        keymap(mapping.mode, mapping.from, mapping.to, { buffer = true, nowait = true })
+    config = vim.tbl_deep_extend("force", config, user_conf)
+
+    for func, keystroke in pairs(config) do
+        keymap("n", keystroke, utils[func], { noremap = true, buffer = true, nowait = true })
     end
 end
 
-return { setup = setup }
+local function setup_commands()
+    local command = api.nvim_create_user_command
+    command("InterlacedJoinUp", utils.InterlacedJoinUp, {})
+    command("InterlacedSplitDownAtCursor", utils.InterlacedSplitDownAtCursor, {})
+    command("InterlacedSplitDownTheWholeLine", utils.InterlacedSplitDownTheWholeLine, {})
+    command("InterlacedNavDown", utils.InterlacedNavDown, {})
+    command("InterlacedNavUp", utils.InterlacedNavUp, {})
+end
+
+local function setup(user_conf)
+    user_conf = user_conf or {}
+    setup_global_mappings(user_conf)
+    setup_commands()
+end
+
+return {
+    setup = setup
+}
