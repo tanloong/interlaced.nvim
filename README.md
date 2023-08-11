@@ -34,21 +34,27 @@ use {
     -- Feel free to adjust it as you see fit
     cond = function()
         local bufnr = vim.api.nvim_get_current_buf()
-    cond = function()
         return (vim.api.nvim_buf_get_name(bufnr)):find("interlaced%.txt$") and true or false
     end
 }
 ```
 
-## Configuration
+## Settings
+
+Default configuration:
 
 ```lua
-return require("interlaced").setup({
-    InterlacedJoinUp = ",",               
-    InterlacedSplitDownAtCursor = "d",    
-    InterlacedSplitDownTheWholeLine = "D",
-    InterlacedNavDown = "J",              -- move cursor to next pair
-    InterlacedNavUp = "K"                 -- move curosr to previous pair
+require("interlaced").setup({
+    -- join current line up to previous pair
+    InterlacedJoinUp = ",",
+    -- split current line apart at cursor position
+    InterlacedSplitDownAtCursor = "d",
+    -- join current line down to next pair
+    InterlacedJoinDown = "D",
+    -- move cursor to next pair
+    InterlacedNavDown = "J",
+    -- move curosr to previous pair
+    InterlacedNavUp = "K"
 })
 ```
 
