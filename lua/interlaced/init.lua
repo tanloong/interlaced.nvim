@@ -77,7 +77,7 @@ function utils.InterlacedSplitDownAtCursor()
     vim.cmd("w")
 end
 
-function utils.InterlacedSplitDownTheWholeLine()
+function utils.InterlacedJoinDown()
     vim.cmd([[normal! 0]])
     utils.InterlacedSplitDownAtCursor()
 end
@@ -94,7 +94,7 @@ local function setup_global_mappings(user_conf)
     local config = {
         InterlacedJoinUp = ",",
         InterlacedSplitDownAtCursor = "d",
-        InterlacedSplitDownTheWholeLine = "D",
+        InterlacedJoinDown = "D",
         InterlacedNavDown = "J",
         InterlacedNavUp = "K"
     }
@@ -109,7 +109,7 @@ local function setup_commands()
     local command = api.nvim_create_user_command
     command("InterlacedJoinUp", utils.InterlacedJoinUp, {})
     command("InterlacedSplitDownAtCursor", utils.InterlacedSplitDownAtCursor, {})
-    command("InterlacedSplitDownTheWholeLine", utils.InterlacedSplitDownTheWholeLine, {})
+    command("InterlacedJoinDown", utils.InterlacedJoinDown, {})
     command("InterlacedNavDown", utils.InterlacedNavDown, {})
     command("InterlacedNavUp", utils.InterlacedNavUp, {})
 end
