@@ -6,7 +6,11 @@ Join or split current line for aligning bilingual sentence pairs.
 
 1. Join current line up to previous pair
 
+![simplescreenrecorder-2023-08-12_03 11 42](https://github.com/tanloong/interlaced.nvim/assets/71320000/c3894f0d-2a01-4d56-b243-70abb5b2a827)
+
 2. Split current line down to the next pair
+
+![simplescreenrecorder-2023-08-12_03 14 57](https://github.com/tanloong/interlaced.nvim/assets/71320000/f324a152-3d45-4a8b-bf29-4c753f2ad199)
 
 ## Installation
 
