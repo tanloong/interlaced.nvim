@@ -1,16 +1,26 @@
 # interlaced.nvim
 
-Join or split current line for aligning bilingual sentence pairs.
+Join/split current line to align bilingual sentence pairs.
 
 ## Features
 
+<details>
+<summary>
 1. Join current line up to previous pair
+</summary>
+  <p>
+    <img src="https://github.com/tanloong/interlaced.nvim/assets/71320000/c3894f0d-2a01-4d56-b243-70abb5b2a827" alt="GIF">
+  </p>
+</details>
 
-![simplescreenrecorder-2023-08-12_03 11 42](https://github.com/tanloong/interlaced.nvim/assets/71320000/c3894f0d-2a01-4d56-b243-70abb5b2a827)
-
+<details>
+<summary>
 2. Split current line down to the next pair
-
-![simplescreenrecorder-2023-08-12_03 14 57](https://github.com/tanloong/interlaced.nvim/assets/71320000/f324a152-3d45-4a8b-bf29-4c753f2ad199)
+</summary>
+  <p>
+    <img src="https://github.com/tanloong/interlaced.nvim/assets/71320000/f324a152-3d45-4a8b-bf29-4c753f2ad199" alt="GIF">
+  </p>
+</details>
 
 ## Installation
 
@@ -44,4 +54,4 @@ return require("interlaced").setup({
 
 ## License
 
-GPL v3
+GNU GPL v3.0 - see [LICENSE](https://github.com/tanloong/interlaced.nvim/blob/main/LICENSE) for more details.
