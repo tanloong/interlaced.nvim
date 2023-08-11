@@ -92,11 +92,11 @@ end
 
 local function setup_global_mappings(user_conf)
     local config = {
-        ["InterlacedJoinUp"] = [[,]],
-        ["InterlacedSplitDownAtCursor"] = [[d]],
-        ["InterlacedSplitDownTheWholeLine"] = [[D]],
-        ["InterlacedNavDown"] = [[3j]],
-        ["InterlacedNavUp"] = [[3k]]
+        InterlacedJoinUp = ",",
+        InterlacedSplitDownAtCursor = "d",
+        InterlacedSplitDownTheWholeLine = "D",
+        InterlacedNavDown = "J",
+        InterlacedNavUp = "K"
     }
     config = vim.tbl_deep_extend("force", config, user_conf)
 
