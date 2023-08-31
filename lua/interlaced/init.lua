@@ -83,11 +83,11 @@ function utils.InterlacedJoinDown()
 end
 
 function utils.InterlacedNavDown()
-    vim.cmd([[normal! 3j]])
+    vim.cmd([[normal! 03j]])
 end
 
 function utils.InterlacedNavUp()
-    vim.cmd([[normal! 3k]])
+    vim.cmd([[normal! 03k]])
 end
 
 local function setup_global_mappings(user_conf)

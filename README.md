@@ -51,9 +51,9 @@ require("interlaced").setup({
     InterlacedSplitDownAtCursor = "d",
     -- join current line down to next pair
     InterlacedJoinDown = "D",
-    -- move cursor to next pair
+    -- Navigate to next pair
     InterlacedNavDown = "J",
-    -- move curosr to previous pair
+    -- Navigate to previous pair
     InterlacedNavUp = "K"
 })
 ```
