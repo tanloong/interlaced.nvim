@@ -1,9 +1,11 @@
 #!/usr/bin/env lua
-local keymap = vim.keymap.set
+local keyset = vim.keymap.set
+local keydel = vim.keymap.del
 local setline = vim.fn.setline
 local getline = vim.fn.getline
 local fn = vim.fn
 local api = vim.api
+local command = api.nvim_create_user_command
 
 local utils = {}
 function utils.append_to_3_lines_above(lineno)
@@ -28,7 +30,7 @@ function utils.delete_trailing_empty_lines()
     end
 end
 
-function utils.InterlacedJoinUp()
+function utils.JoinUp()
     local lineno = fn.line(".")
     if lineno <= 3 then
         print("[interlaced.nvim] Joining too early, please move down your cursor.")
@@ -49,7 +51,7 @@ function utils.InterlacedJoinUp()
     vim.cmd("w")
 end
 
-function utils.InterlacedSplitDownAtCursor()
+function utils.SplitAtCursor()
     local lineno = fn.line(".")
     local last_lineno = fn.line("$")
 
@@ -77,46 +79,75 @@ function utils.InterlacedSplitDownAtCursor()
     vim.cmd("w")
 end
 
-function utils.InterlacedJoinDown()
+function utils.JoinDown()
     vim.cmd([[normal! 0]])
-    utils.InterlacedSplitDownAtCursor()
+    utils.SplitAtCursor()
 end
 
-function utils.InterlacedNavDown()
+function utils.NavigateDown()
     vim.cmd([[normal! 03j]])
 end
 
-function utils.InterlacedNavUp()
+function utils.NavigateUp()
     vim.cmd([[normal! 03k]])
+end
+
+function utils.InterlacedSplitHelper(regex, repl)
+    -- vim.cmd([[saveas! %.splitted]])
+    if repl == nil then repl = [[&\r]] end
+    vim.cmd([[%s/]] .. regex .. [[/]] .. repl .. [[/g]])
+    vim.cmd([[global/^\s*$/d]])
+
+    vim.cmd([[w]])
+end
+
+function utils.SplitChineseSentences()
+    local regex = [[\v[…。!！?？—]+[’”"]?]]
+    utils.InterlacedSplitHelper(regex)
+end
+
+function utils.SplitEnglishSentences()
+    local regex = [[\v(%(%(\u\l{,2})@<!(\.\a)@<!\.|[!?])+['’"”]?)%(\s|$)]]
+    utils.InterlacedSplitHelper(regex, [[\1\r]])
+end
+
+local function is_table_empty(tbl)
+    for _, _ in pairs(tbl) do
+        return false -- If at least one key-value pair exists, the table is not empty
+    end
+    return true      -- If the loop completes without returning false, the table is empty
 end
 
 local function setup_global_mappings(user_conf)
     local config = {
-        InterlacedJoinUp = ",",
-        InterlacedSplitDownAtCursor = "d",
-        InterlacedJoinDown = "D",
-        InterlacedNavDown = "J",
-        InterlacedNavUp = "K"
+        JoinUp = ",",
+        SplitAtCursor = "d",
+        JoinDown = "D",
+        NavigateDown = "J",
+        NavigateUp = "K"
     }
     config = vim.tbl_deep_extend("force", config, user_conf)
 
     for func, keystroke in pairs(config) do
-        keymap("n", keystroke, utils[func], { noremap = true, buffer = true, nowait = true })
+        keyset("n", keystroke, utils[func], { noremap = true, buffer = true, nowait = true })
     end
 end
 
 local function setup_commands()
-    local command = api.nvim_create_user_command
-    command("InterlacedJoinUp", utils.InterlacedJoinUp, {})
-    command("InterlacedSplitDownAtCursor", utils.InterlacedSplitDownAtCursor, {})
-    command("InterlacedJoinDown", utils.InterlacedJoinDown, {})
-    command("InterlacedNavDown", utils.InterlacedNavDown, {})
-    command("InterlacedNavUp", utils.InterlacedNavUp, {})
+    command("JoinUp", utils.JoinUp, {})
+    command("SplitAtCursor", utils.SplitAtCursor, {})
+    command("JoinDown", utils.JoinDown, {})
+    command("NavigateDown", utils.NavigateDown, {})
+    command("NavigateUp", utils.NavigateUp, {})
+
+    command("SplitChineseSentences", utils.SplitChineseSentences, {})
+    command("SplitEnglishSentences", utils.SplitEnglishSentences, {})
 end
 
 local function setup(user_conf)
     user_conf = user_conf or {}
     setup_global_mappings(user_conf)
+
     setup_commands()
 end
 

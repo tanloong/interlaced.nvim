@@ -46,17 +46,21 @@ Default configuration:
 ```lua
 require("interlaced").setup({
     -- join current line up to previous pair
-    InterlacedJoinUp = ",",
+    JoinUp = ",",
     -- split current line apart at cursor position
-    InterlacedSplitDownAtCursor = "d",
+    SplitAtCursor = "d",
     -- join current line down to next pair
-    InterlacedJoinDown = "D",
+    JoinDown = "D",
     -- Navigate to next pair
-    InterlacedNavDown = "J",
+    NavigateDown = "J",
     -- Navigate to previous pair
-    InterlacedNavUp = "K"
+    NavigateUp = "K"
 })
 ```
+
+## Sentence segmentation
+
+This plugin has two commands for sentence segmentation in a **monologue** buffer: `SplitEnglishSentences` and `SplitChineseSentences`. Using simple regex patterns to identify sentence boundaries, they cannot handle all cases perfectly. It is recommended to use an NLP tool for the splitting task instead.
 
 ## License
 
