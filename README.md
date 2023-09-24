@@ -29,38 +29,87 @@ Join/split current line to align bilingual sentence pairs.
 ```lua
 use {
     'tanloong/interlaced.nvim',
-    config = function() require("interlaced").setup() end,
-    -- Load only for *interlaced.txt, my personal naming habit for parallel text files
-    -- Feel free to adjust it as you see fit
-    cond = function()
+    config = function()
+        opts = {
+            mappings = {
+                -- join current line up to previous pair
+                JoinUp = ",",
+                -- split current line apart at cursor position
+                SplitAtCursor = "d",
+                -- join current line down to next pair
+                JoinDown = "D",
+                -- Navigate to next pair
+                NavigateDown = "J",
+                -- Navigate to previous pair
+                NavigateUp = "K"
+            },
+
+            setup_mappings_now = false,
+        }
         local bufnr = vim.api.nvim_get_current_buf()
-        return (vim.api.nvim_buf_get_name(bufnr)):find("interlaced%.txt$") and true or false
-    end
+        -- automatically enable mappings for *interlaced.txt files, or
+        -- otherwise you need to run "MapInterlaced" manually to enable
+        -- them
+        local is_interlaced_file = (vim.api.nvim_buf_get_name(bufnr)):find("interlaced%.txt$")
+        if is_interlaced_file then
+            opts["setup_mappings_now"] = true
+        end
+        require("interlaced").setup(opts)
+    end,
+    ft = "text",
 }
 ```
 
-## Settings
++ Using [lazy.nvim](https://github.com/folke/lazy.nvim)
 
-Default configuration:
+```
+require("lazy").setup({
+    {
+        'tanloong/interlaced.nvim',
+        config = function()
+            opts = {
+                mappings = {
+                    -- join current line up to previous pair
+                    JoinUp = ",",
+                    -- split current line apart at cursor position
+                    SplitAtCursor = "d",
+                    -- join current line down to next pair
+                    JoinDown = "D",
+                    -- Navigate to next pair
+                    NavigateDown = "J",
+                    -- Navigate to previous pair
+                    NavigateUp = "K"
+                },
 
-```lua
-require("interlaced").setup({
-    -- join current line up to previous pair
-    JoinUp = ",",
-    -- split current line apart at cursor position
-    SplitAtCursor = "d",
-    -- join current line down to next pair
-    JoinDown = "D",
-    -- Navigate to next pair
-    NavigateDown = "J",
-    -- Navigate to previous pair
-    NavigateUp = "K"
+                setup_mappings_now = false,
+            }
+            local bufnr = vim.api.nvim_get_current_buf()
+            -- automatically enable mappings for *interlaced.txt files, or
+            -- otherwise you need to run "MapInterlaced" manually to enable
+            -- them
+            local is_interlaced_file = (vim.api.nvim_buf_get_name(bufnr)):find("interlaced%.txt$")
+            if is_interlaced_file then
+                opts["setup_mappings_now"] = true
+            end
+            require("interlaced").setup(opts)
+        end,
+        ft = "text",
+    },
 })
 ```
+## Commands
 
-## Sentence segmentation
+- `SplitEnglishSentences` and `SplitChineseSentences`: These commands are used for sentence segmentation in a **monologue** buffer. It is important to note that they may not handle all cases perfectly, as they rely on simple regex patterns to identify sentence boundaries. For more accurate splitting, it is recommended to use a n NLP tool. However, if you don't have an NLP tool at hand or if you just want a quick and not-that-accurate splitting, these commands can be helpful.
 
-This plugin has two commands for sentence segmentation in a **monologue** buffer: `SplitEnglishSentences` and `SplitChineseSentences`. Using simple regex patterns to identify sentence boundaries, they cannot handle all cases perfectly. It is recommended to use an NLP tool for the splitting task instead.
+- `MapInterlaced` and `UnmapInterlaced`: `MapInterlaced` sets keybindings for text manipulations; `UnmapInterlaced` restores them to their previous mapping.
+
+| Manipulation | Default keybinding |
+|-|-|
+| JoinUp | `,` |
+| JoinDown | `D` |
+| SplitAtCursor | `d` |
+| NavigateUp | `J` |
+| NavigateDown | `K` |
 
 ## License
 
