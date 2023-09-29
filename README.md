@@ -62,7 +62,7 @@ use {
 
 + Using [lazy.nvim](https://github.com/folke/lazy.nvim)
 
-```
+```lua
 require("lazy").setup({
     {
         'tanloong/interlaced.nvim',
@@ -97,9 +97,10 @@ require("lazy").setup({
     },
 })
 ```
+
 ## Commands
 
-- `SplitEnglishSentences` and `SplitChineseSentences`: These commands are used for sentence segmentation in a **monologue** buffer. It is important to note that they may not handle all cases perfectly, as they rely on simple regex patterns to identify sentence boundaries. For more accurate splitting, it is recommended to use a n NLP tool. However, if you don't have an NLP tool at hand or if you just want a quick and not-that-accurate splitting, these commands can be helpful.
+- `SplitEnglishSentences` and `SplitChineseSentences`: These commands are used for sentence segmentation in a **monologue** buffer. It is important to note that they may not handle all cases perfectly, as they rely on simple regex patterns to identify sentence boundaries. For more accurate splitting, it is recommended to use an NLP tool. However, if you don't have an NLP tool at hand or if you just want a quick and not-that-accurate splitting, these commands can be helpful.
 
 - `MapInterlaced` and `UnmapInterlaced`: `MapInterlaced` sets keybindings for text manipulations; `UnmapInterlaced` restores them to their previous mapping.
 
