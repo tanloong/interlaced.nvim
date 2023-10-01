@@ -114,13 +114,6 @@ function utils.SplitEnglishSentences()
     utils.InterlacedSplitHelper(regex, [[\1\r]])
 end
 
-local function is_table_empty(tbl)
-    for _, _ in pairs(tbl) do
-        return false -- If at least one key-value pair exists, the table is not empty
-    end
-    return true      -- If the loop completes without returning false, the table is empty
-end
-
 local function store_orig_mapping(keystroke)
     mapping = vim.fn.maparg(keystroke, "n", false, true)
     orig_mappings[keystroke] = mapping
@@ -144,7 +137,7 @@ end
 
 local function unmap_interlaced()
     for keystroke, mapping in pairs(orig_mappings) do
-        if is_table_empty(mapping) then
+        if vim.tbl_isempty(mapping) then
             vim_api.nvim_buf_del_keymap(0, "n", keystroke)
         else
             mapping.buffer = true
