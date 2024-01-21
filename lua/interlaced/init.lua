@@ -27,7 +27,7 @@ end
 function utils.delete_trailing_empty_lines()
     local last_lineno = vim_fn.line("$")
     local buf = vim_api.nvim_get_current_buf()
-    while string.match(getline(last_lineno), "^%s*$") do
+    while getline(last_lineno):match("^%s*$") do
         vim_fn.deletebufline(buf, last_lineno)
         last_lineno = last_lineno - 1
     end
@@ -95,23 +95,31 @@ function utils.NavigateUp()
     vim_cmd([[normal! 03k]])
 end
 
-function utils.InterlacedSplitHelper(regex, repl)
+function utils.InterlacedSplitHelper(regex)
     -- cmd([[saveas! %.splitted]])
-    if repl == nil then repl = [[&\r]] end
-    vim_cmd([[%s/]] .. regex .. [[/]] .. repl .. [[/g]])
-    vim_cmd([[global/^\s*$/d]])
+    local buf = vim_api.nvim_get_current_buf()
+    local last_lineno = vim_fn.line("$")
+    for i = last_lineno, 1, -1 do
+        line = getline(i)
+        local sents = vim_fn.split(line, regex)
 
+        vim_fn.deletebufline(buf, i)
+        vim_fn.append(i - 1, sents)
+    end
     vim_cmd([[w]])
 end
 
 function utils.SplitChineseSentences()
-    local regex = [[\v[…。!！?？—]+[’”"]?]]
+    -- :h split()
+    -- Use '\zs' at the end of the pattern to keep the separator.
+    -- :echo split('bar:foo', ':\zs')
+    local regex = [[\v[…。!！?？—]+[’”"]?\zs]]
     utils.InterlacedSplitHelper(regex)
 end
 
 function utils.SplitEnglishSentences()
-    local regex = [[\v(%(%(\u\l{,2})@<!(\.\a)@<!\.|[!?])+['’"”]?)%(\s|$)]]
-    utils.InterlacedSplitHelper(regex, [[\1\r]])
+    local regex = [[\v(%(%(\u\l{,2})@<!(\.\a)@<!\.|[!?])+['’"”]?)%(\s|$)\zs]]
+    utils.InterlacedSplitHelper(regex)
 end
 
 local function store_orig_mapping(keystroke)
