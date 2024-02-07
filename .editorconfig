@@ -1,0 +1,6 @@
+[*.lua]
+indent_style = space
+indent_size = 2
+column_width = 112
+trim_trailing_whitespace = true
+end_of_line = lf
