@@ -111,7 +111,3 @@ require("lazy").setup({
 | SplitAtCursor | `d` |
 | NavigateUp | `J` |
 | NavigateDown | `K` |
-
-## License
-
-GNU GPL v3.0 - see [LICENSE](https://github.com/tanloong/interlaced.nvim/blob/main/LICENSE) for more details.
