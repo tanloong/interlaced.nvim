@@ -55,6 +55,14 @@ function utils.JoinUp()
   vim_cmd("w")
 end
 
+function utils.JoinUpPair()
+  vim_cmd([[normal {]])
+  for _ = 1, 2 do
+    vim_fn.setcursorcharpos({vim_fn.line(".") + 1, 1})
+    utils.JoinUp()
+  end
+end
+
 function utils.SplitAtCursor()
   local lineno = vim_fn.line(".")
   local last_lineno = vim_fn.line("$")
@@ -131,6 +139,7 @@ end
 local function setup_mappings()
   local default_mapping_conf = {
     JoinUp = ",",
+    JoinUpPair = "<",
     SplitAtCursor = "d",
     JoinDown = "D",
     NavigateDown = "J",
@@ -157,6 +166,7 @@ end
 
 local function setup_commands()
   create_command("JoinUp", utils.JoinUp, {})
+  create_command("JoinUpPair", utils.JoinUpPair, {})
   create_command("SplitAtCursor", utils.SplitAtCursor, {})
   create_command("JoinDown", utils.JoinDown, {})
   create_command("NavigateDown", utils.NavigateDown, {})
