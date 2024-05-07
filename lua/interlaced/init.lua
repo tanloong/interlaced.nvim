@@ -56,24 +56,30 @@ function utils.JoinUp()
 end
 
 function utils.JoinUpPair()
+  local here = vim_fn.getpos(".")
   vim_cmd([[normal! {]])
   for _ = 1, 2 do
     vim_fn.setcursorcharpos({vim_fn.line(".") + 1, 1})
     utils.JoinUp()
   end
+  vim_fn.setpos(".", here)
 end
 
 function utils.PullUp()
+  local here = vim_fn.getpos(".")
   vim_fn.setcursorcharpos({vim_fn.line(".") + 3, 1})
   utils.JoinUp()
+  vim_fn.setpos(".", here)
 end
 
 function utils.PullUpPair()
+  local here = vim_fn.getpos(".")
   vim_cmd([[normal! }]])
   for _ = 1, 2 do
     vim_fn.setcursorcharpos({vim_fn.line(".") + 1, 1})
     utils.JoinUp()
   end
+  vim_fn.setpos(".", here)
 end
 
 function utils.SplitAtCursor()
