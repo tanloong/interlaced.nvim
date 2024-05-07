@@ -6,13 +6,50 @@ local getline = vim.fn.getline
 local vim_fn = vim.fn
 local vim_api = vim.api
 local vim_cmd = vim.cmd
+local vim_schedule = vim.schedule
 local create_command = vim_api.nvim_create_user_command
 
-local utils = {}
-local orig_mappings = {}
+local config = require("interlaced.config")
+local _H = {}
+local M = {
+  _H = _H,
+  _Name = "Interlaced",
+  _orig_mappings = {},
+  config = {},
+  cmd = {},
+}
 local user_conf = {}
 
-function utils.append_to_3_lines_above(lineno)
+---@param msg string # message to log
+---@param kind string # hl group to use for logging
+---@param history boolean # whether to add the message to history
+M._log = function(msg, kind, history)
+  vim_schedule(function()
+    vim_api.nvim_echo({
+      { M._Name .. ": " .. msg, kind },
+    }, history, {})
+  end)
+end
+
+-- nicer error messages using nvim_echo
+---@param msg string # error message
+M.error = function(msg)
+  M._log(msg, "ErrorMsg", true)
+end
+
+-- nicer warning messages using nvim_echo
+---@param msg string # warning message
+M.warning = function(msg)
+  M._log(msg, "WarningMsg", true)
+end
+
+-- nicer plain messages using nvim_echo
+---@param msg string # plain message
+M.info = function(msg)
+  M._log(msg, "Normal", true)
+end
+
+_H.append_to_3_lines_above = function(lineno)
   local lineno_minus3 = lineno - 3
   local lineno_minus1 = lineno - 1
   local line = getline(lineno)
@@ -25,7 +62,7 @@ function utils.append_to_3_lines_above(lineno)
   setline(lineno, "")
 end
 
-function utils.delete_trailing_empty_lines()
+_H.delete_trailing_empty_lines = function()
   local last_lineno = vim_fn.line("$")
   local buf = vim_api.nvim_get_current_buf()
   while getline(last_lineno):match("^%s*$") do
@@ -34,14 +71,32 @@ function utils.delete_trailing_empty_lines()
   end
 end
 
-function utils.JoinUp()
+M.cmd.MapInterlaced = function()
+  for func, shortcut in pairs(M.config.mappings) do
+    _H.store_orig_mapping(shortcut)
+    keyset("n", shortcut, M.cmd[func], { noremap = true, buffer = true, nowait = true })
+  end
+end
+
+M.cmd.UnmapInterlaced = function()
+  for keystroke, mapping in pairs(M._orig_mappings) do
+    if vim.tbl_isempty(mapping) then
+      vim_api.nvim_buf_del_keymap(0, "n", keystroke)
+    else
+      mapping.buffer = true
+      vim_fn.mapset("n", false, mapping)
+    end
+  end
+end
+
+M.cmd.JoinUp = function()
   local lineno = vim_fn.line(".")
   if lineno <= 3 then
-    print("[interlaced.nvim] Joining too early, please move down your cursor.")
+    M.warning("Joining too early, please move down your cursor.")
     return
   end
 
-  utils.append_to_3_lines_above(lineno)
+  _H.append_to_3_lines_above(lineno)
 
   lineno = lineno + 3
   local last_lineno = vim_fn.line("$")
@@ -51,38 +106,52 @@ function utils.JoinUp()
   end
   setline(lineno - 3, "")
 
-  utils.delete_trailing_empty_lines()
+  _H.delete_trailing_empty_lines()
   vim_cmd("w")
 end
 
-function utils.JoinUpPair()
+M.cmd.JoinUpPair = function()
   local here = vim_fn.getpos(".")
   vim_cmd([[normal! {]])
   for _ = 1, 2 do
-    vim_fn.setcursorcharpos({vim_fn.line(".") + 1, 1})
-    utils.JoinUp()
+    vim_fn.setcursorcharpos({ vim_fn.line(".") + 1, 1 })
+    M.cmd.JoinUp()
   end
   vim_fn.setpos(".", here)
 end
 
-function utils.PullUp()
+M.cmd.PullUp = function()
   local here = vim_fn.getpos(".")
-  vim_fn.setcursorcharpos({vim_fn.line(".") + 3, 1})
-  utils.JoinUp()
+  local curr_lineno = here[2]
+  local last_lineno = vim_fn.line("$")
+  if last_lineno - curr_lineno < 3 then
+    M.warning("No more lines can be pulled up.")
+    return
+  end
+
+  vim_fn.setcursorcharpos({ curr_lineno + 3, 1 })
+  M.cmd.JoinUp()
   vim_fn.setpos(".", here)
 end
 
-function utils.PullUpPair()
+M.cmd.PullUpPair = function()
   local here = vim_fn.getpos(".")
+  local curr_lineno = here[2]
+  local last_lineno = vim_fn.line("$")
+  if last_lineno - curr_lineno < 3 + 1 then
+    M.warning("No more lines can be pulled up.")
+    return
+  end
+
   vim_cmd([[normal! }]])
   for _ = 1, 2 do
-    vim_fn.setcursorcharpos({vim_fn.line(".") + 1, 1})
-    utils.JoinUp()
+    vim_fn.setcursorcharpos({ vim_fn.line(".") + 1, 1 })
+    M.cmd.JoinUp()
   end
   vim_fn.setpos(".", here)
 end
 
-function utils.SplitAtCursor()
+M.cmd.SplitAtCursor = function()
   local lineno = vim_fn.line(".")
   local last_lineno = vim_fn.line("$")
 
@@ -106,24 +175,24 @@ function utils.SplitAtCursor()
   setline(lineno, vim_fn.substitute(before_cursor, [[\s\+$]], "", ""))
   setline(lineno + 3, vim_fn.substitute(after_cursor, [[^\s\+]], "", ""))
 
-  utils.delete_trailing_empty_lines()
+  _H.delete_trailing_empty_lines()
   vim_cmd("w")
 end
 
-function utils.JoinDown()
+M.cmd.JoinDown = function()
   vim_cmd([[normal! 0]])
-  utils.SplitAtCursor()
+  M.cmd.SplitAtCursor()
 end
 
-function utils.NavigateDown()
+M.cmd.NavigateDown = function()
   vim_cmd([[normal! 03j]])
 end
 
-function utils.NavigateUp()
+M.cmd.NavigateUp = function()
   vim_cmd([[normal! 03k]])
 end
 
-function utils.InterlacedSplitHelper(regex)
+_H.InterlacedSplitHelper = function(regex)
   -- cmd([[saveas! %.splitted]])
   local buf = vim_api.nvim_get_current_buf()
   local last_lineno = vim_fn.line("$")
@@ -137,82 +206,39 @@ function utils.InterlacedSplitHelper(regex)
   vim_cmd([[w]])
 end
 
-function utils.SplitChineseSentences()
+M.cmd.SplitChineseSentences = function()
   -- :h split()
   -- Use '\zs' at the end of the pattern to keep the separator.
   -- :echo split('bar:foo', ':\zs')
   local regex = [[\v[…。!！?？—]+[’”"]?\zs]]
-  utils.InterlacedSplitHelper(regex)
+  _H.InterlacedSplitHelper(regex)
 end
 
-function utils.SplitEnglishSentences()
+M.cmd.SplitEnglishSentences = function()
   local regex = [[\v(%(%(\u\l{,2})@<!(\.\a)@<!\.|[!?])+['’"”]?)%(\s|$)\zs]]
-  utils.InterlacedSplitHelper(regex)
+  _H.InterlacedSplitHelper(regex)
 end
 
-local function store_orig_mapping(keystroke)
-  mapping = vim.fn.maparg(keystroke, "n", false, true)
-  orig_mappings[keystroke] = mapping
+_H.store_orig_mapping = function(shortcut)
+  mapping = vim_fn.maparg(shortcut, "n", false, true)
+  M._orig_mappings[shortcut] = mapping
 end
 
-local function setup_mappings()
-  local default_mapping_conf = {
-    JoinUp = ",",
-    JoinUpPair = "<",
-    PullUp = ".",
-    PullUpPair = ">",
-    SplitAtCursor = "d",
-    JoinDown = "D",
-    NavigateDown = "J",
-    NavigateUp = "K"
-  }
-  config = vim.tbl_deep_extend("force", default_mapping_conf, user_conf.mappings)
+M.setup = function(opts)
+  opts = opts or {}
+  if type(opts) ~= "table" then
+    M.error(string.format("setup() expects table, but got %s:\n%s", type(opts), vim.inspect(opts)))
+    opts = {}
+  end
+  M.config = vim.tbl_deep_extend("force", config, opts)
 
-  for func, keystroke in pairs(config) do
-    store_orig_mapping(keystroke)
-    keyset("n", keystroke, utils[func], { noremap = true, buffer = true, nowait = true })
+  if M.config.setup_mappings_now then
+    M.cmd.MapInterlaced()
+  end
+
+  for cmd, func in pairs(M.cmd) do
+    create_command(cmd, func, {})
   end
 end
 
-local function unmap_interlaced()
-  for keystroke, mapping in pairs(orig_mappings) do
-    if vim.tbl_isempty(mapping) then
-      vim_api.nvim_buf_del_keymap(0, "n", keystroke)
-    else
-      mapping.buffer = true
-      vim_fn.mapset("n", false, mapping)
-    end
-  end
-end
-
-local function setup_commands()
-  create_command("JoinUp", utils.JoinUp, {})
-  create_command("JoinUpPair", utils.JoinUpPair, {})
-  create_command("PullUp", utils.PullUp, {})
-  create_command("PullUpPair", utils.PullUpPair, {})
-  create_command("SplitAtCursor", utils.SplitAtCursor, {})
-  create_command("JoinDown", utils.JoinDown, {})
-  create_command("NavigateDown", utils.NavigateDown, {})
-  create_command("NavigateUp", utils.NavigateUp, {})
-
-  create_command("SplitChineseSentences", utils.SplitChineseSentences, {})
-  create_command("SplitEnglishSentences", utils.SplitEnglishSentences, {})
-
-  create_command("MapInterlaced", setup_mappings, {})
-  create_command("UnmapInterlaced", unmap_interlaced, {})
-end
-
-local function setup(conf)
-  if conf ~= nil then
-    user_conf = conf
-    if conf.setup_mappings_now then
-      setup_mappings()
-    end
-  end
-
-  setup_commands()
-end
-
-return {
-  setup = setup
-}
+return M
