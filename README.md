@@ -82,6 +82,8 @@ require("lazy").setup({
                 },
 
                 setup_mappings_now = false,
+                separator_L1 = "",
+                separator_L2 = " ",
             }
             local bufnr = vim.api.nvim_get_current_buf()
             -- automatically enable mappings for *interlaced.txt files, or

@@ -18,7 +18,6 @@ local M = {
   config = {},
   cmd = {},
 }
-local user_conf = {}
 
 ---@param msg string # message to log
 ---@param kind string # hl group to use for logging
@@ -56,8 +55,8 @@ _H.append_to_3_lines_above = function(lineno)
   local line_minus3 = getline(lineno_minus3)
   local line_minus1 = getline(lineno_minus1)
 
-  local sep = " "
-  if line_minus1 == "" or line_minus3 == "" then sep = "" end
+  local sep = M.config.separator_L2
+  if line_minus1 == "" or line_minus3 == "" then sep = M.config.separator_L1 end
   setline(lineno_minus3, line_minus3:gsub("%s+$", "") .. sep .. line)
   setline(lineno, "")
 end
