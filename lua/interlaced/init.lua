@@ -6,7 +6,6 @@ local getline = vim.fn.getline
 local vim_fn = vim.fn
 local vim_api = vim.api
 local vim_cmd = vim.cmd
-local vim_schedule = vim.schedule
 local create_command = vim_api.nvim_create_user_command
 
 local config = require("interlaced.config")
@@ -15,6 +14,7 @@ local M = {
   _H = _H,
   _Name = "Interlaced",
   _orig_mappings = {},
+  _is_mappings_set = false,
   config = {},
   cmd = {},
 }
@@ -23,7 +23,7 @@ local M = {
 ---@param kind string # hl group to use for logging
 ---@param history boolean # whether to add the message to history
 M._log = function(msg, kind, history)
-  vim_schedule(function()
+  vim.schedule(function()
     vim_api.nvim_echo({
       { M._Name .. ": " .. msg, kind },
     }, history, {})
@@ -75,6 +75,8 @@ M.cmd.MapInterlaced = function()
     _H.store_orig_mapping(shortcut)
     keyset("n", shortcut, M.cmd[func], { noremap = true, buffer = true, nowait = true })
   end
+  M.info("Keybindings have been enabled.")
+  M._is_mappings_set = true
 end
 
 M.cmd.UnmapInterlaced = function()
@@ -86,6 +88,8 @@ M.cmd.UnmapInterlaced = function()
       vim_fn.mapset("n", false, mapping)
     end
   end
+  M.info("Keybindings have been disabled.")
+  M._is_mappings_set = false
 end
 
 M.cmd.JoinUp = function()
@@ -191,6 +195,66 @@ M.cmd.NavigateUp = function()
   vim_cmd([[normal! 03k]])
 end
 
+-- @param lines1 table
+-- @param lines2 table
+-- @return table
+_H.zip = function(lines1, lines2)
+  local lines = {}
+  local len1, len2 = #lines1, #lines2
+  local len_max = math.max(len1, len2)
+  for i = 1, len_max do
+    table.insert(lines, lines1[i] or "")
+    table.insert(lines, lines2[i] or "")
+    table.insert(lines, "")
+  end
+  return lines
+end
+
+-- @param params table
+-- @param is_curbuf_L1 boolean
+-- @return nil
+_H.interlace = function(params, is_curbuf_L1)
+  file_path = params.args
+  local fh, err = io.open(file_path, "r")
+  if not fh then
+    M.warning("Failed to open file for reading: " .. file_path .. "\nError: " .. err)
+    return nil
+  end
+  local lines_that = {}
+  for line in fh:lines() do
+    table.insert(lines_that, line)
+  end
+  fh:close()
+  local lines_this = vim_api.nvim_buf_get_lines(0, 0, -1, true)
+  lines_this = vim.tbl_filter(function(s) return s:find("%S") ~= nil end, lines_this)
+  lines_that = vim.tbl_filter(function(s) return s:find("%S") ~= nil end, lines_that)
+  local lines = is_curbuf_L1 and _H.zip(lines_this, lines_that) or _H.zip(lines_that, lines_this)
+  local time = os.date("%Y-%m-%d.%H-%M-%S")
+  local stamp = tostring(math.floor(vim.loop.hrtime() / 1000000) % 1000)
+  while #stamp < 3 do
+    stamp = "0" .. stamp
+  end
+  time = time .. "." .. stamp
+  local interlaced_path = time .. ".interlaced.txt"
+  vim_fn.writefile(lines, interlaced_path)
+  vim_cmd("edit " .. interlaced_path)
+  if not M._is_mappings_set then
+    M.cmd.MapInterlaced()
+  end
+end
+
+-- @param params table
+-- @return nil
+M.cmd.InterlaceWithL1 = function(params)
+  _H.interlace(params, false)
+end
+
+-- @param params table
+-- @return nil
+M.cmd.InterlaceWithL2 = function(params)
+  _H.interlace(params, true)
+end
+
 _H.InterlacedSplitHelper = function(regex)
   -- cmd([[saveas! %.splitted]])
   local buf = vim_api.nvim_get_current_buf()
@@ -236,7 +300,10 @@ M.setup = function(opts)
   end
 
   for cmd, func in pairs(M.cmd) do
-    create_command(cmd, func, {})
+    create_command(cmd, function(params) func(params) end, {
+      nargs = cmd:find("L%d$") and 1 or 0,
+      complete = cmd:find("L%d$") and "file" or nil,
+    })
   end
 end
 
