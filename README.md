@@ -45,6 +45,8 @@ https://github.com/tanloong/interlaced.nvim/blob/a74a72dcfc3a4a5208ace8cfbcf8c18
 
 ## Commands
 
-- `SplitEnglishSentences` and `SplitChineseSentences`: These commands are used for sentence segmentation in a **monolingual** buffer. It is important to note that they may not handle all cases perfectly, as they rely on simple regex patterns to identify sentence boundaries. For more accurate splitting, it is recommended to use an NLP tool. However, if you don't have an NLP tool at hand or if you just want a quick and not-that-accurate splitting, these commands can be helpful.
+- `SplitEnglishSentences` and `SplitChineseSentences`: These commands are used for sentence segmentation in a **monolingual** buffer. It is important to note that they may not handle all cases perfectly, as they use simple regex patterns to identify sentence boundaries. For more accurate splitting, it is recommended to use an NLP tool. However, if you just want a quick and not-that-accurate splitting, these commands can be helpful.
 
-- `MapInterlaced` and `UnmapInterlaced`: `MapInterlaced` sets keybindings for text manipulations; `UnmapInterlaced` restores them to their previous mapping.
+- `MapInterlaced` and `UnmapInterlaced`: `MapInterlaced` sets keybindings for text manipulations; `UnmapInterlaced` restores them to their previous mappings, if any.
+
+- `InterlaceWithL1` and `InterlaceWithL2`: Take lines from the current buffer and interlaces them with lines from a specified file, forming an array of `(l1, l2)` pairs. These commands also filter out any empty lines from both the buffer and the file to ensure that only non-empty lines are interlaced. The resulting interlaced text is then saved to a new file and opened for further editing. After openning the interlaced file, keybindings are setup if they have not been previously.
