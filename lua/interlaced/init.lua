@@ -210,14 +210,24 @@ _H.zip = function(lines1, lines2)
   return lines
 end
 
+-- @return string
+_H.get_timestr = function()
+  local timestr = os.date("%Y-%m-%d.%H-%M-%S")
+  local stamp = tostring(math.floor(vim.loop.hrtime() / 1000000) % 1000)
+  while #stamp < 3 do
+    stamp = "0" .. stamp
+  end
+  return timestr .. "." .. stamp
+end
+
 -- @param params table
 -- @param is_curbuf_L1 boolean
 -- @return nil
 _H.interlace = function(params, is_curbuf_L1)
-  file_path = params.args
-  local fh, err = io.open(file_path, "r")
+  local filepath = params.args
+  local fh, err = io.open(filepath, "r")
   if not fh then
-    M.warning("Failed to open file for reading: " .. file_path .. "\nError: " .. err)
+    M.warning("Failed to open file for reading: " .. filepath .. "\nError: " .. err)
     return nil
   end
   local lines_that = {}
@@ -229,12 +239,7 @@ _H.interlace = function(params, is_curbuf_L1)
   lines_this = vim.tbl_filter(function(s) return s:find("%S") ~= nil end, lines_this)
   lines_that = vim.tbl_filter(function(s) return s:find("%S") ~= nil end, lines_that)
   local lines = is_curbuf_L1 and _H.zip(lines_this, lines_that) or _H.zip(lines_that, lines_this)
-  local time = os.date("%Y-%m-%d.%H-%M-%S")
-  local stamp = tostring(math.floor(vim.loop.hrtime() / 1000000) % 1000)
-  while #stamp < 3 do
-    stamp = "0" .. stamp
-  end
-  time = time .. "." .. stamp
+  local time = _H.get_timestr()
   local interlaced_path = time .. ".interlaced.txt"
   vim_fn.writefile(lines, interlaced_path)
   vim_cmd("edit " .. interlaced_path)
@@ -255,7 +260,28 @@ M.cmd.InterlaceWithL2 = function(params)
   _H.interlace(params, true)
 end
 
-_H.InterlacedSplitHelper = function(regex)
+M.cmd.Deinterlace = function()
+  local lines = vim_api.nvim_buf_get_lines(0, 0, -1, true)
+  local lines_l1, lines_l2 = {}, {}
+  for i = 1, #lines, 3 do
+    table.insert(lines_l1, lines[i])
+    table.insert(lines_l2, lines[i + 1])
+  end
+  while lines_l1[#lines_l1] == "" do
+    table.remove(lines_l1)
+  end
+  while lines_l2[#lines_l2] == "" do
+    table.remove(lines_l2)
+  end
+  local timestr = _H.get_timestr()
+  local filepath1, filepath2 = timestr .. ".l1.txt", timestr .. ".l2.txt"
+  vim_fn.writefile(lines_l1, filepath1)
+  vim_fn.writefile(lines_l2, filepath2)
+  vim.cmd("belowright split" .. filepath1)
+  vim.cmd("belowright vsplit" .. filepath2)
+end
+
+_H.SplitHelper = function(regex)
   -- cmd([[saveas! %.splitted]])
   local buf = vim_api.nvim_get_current_buf()
   local last_lineno = vim_fn.line("$")
@@ -274,19 +300,23 @@ M.cmd.SplitChineseSentences = function()
   -- Use '\zs' at the end of the pattern to keep the separator.
   -- :echo split('bar:foo', ':\zs')
   local regex = [[\v[…。!！?？—]+[’”"]?\zs]]
-  _H.InterlacedSplitHelper(regex)
+  _H.SplitHelper(regex)
 end
 
 M.cmd.SplitEnglishSentences = function()
   local regex = [[\v(%(%(\u\l{,2})@<!(\.\a)@<!\.|[!?])+['’"”]?)%(\s|$)\zs]]
-  _H.InterlacedSplitHelper(regex)
+  _H.SplitHelper(regex)
 end
 
+-- @param shortcut string
+-- @return nil
 _H.store_orig_mapping = function(shortcut)
   mapping = vim_fn.maparg(shortcut, "n", false, true)
   M._orig_mappings[shortcut] = mapping
 end
 
+-- @param opts table
+-- @return nil
 M.setup = function(opts)
   opts = opts or {}
   if type(opts) ~= "table" then
