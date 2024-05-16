@@ -72,15 +72,23 @@ _H.delete_trailing_empty_lines = function()
 end
 
 M.cmd.MapInterlaced = function()
+  if M._is_mappings_set then
+    M.warning("Keybindings already on, nothing to do")
+    return
+  end
   for func, shortcut in pairs(M.config.mappings) do
     _H.store_orig_mapping(shortcut)
     keyset("n", shortcut, M.cmd[func], { noremap = true, buffer = true, nowait = true })
   end
-  M.info("Keybindings have been enabled.")
+  M.info("Keybindings on")
   M._is_mappings_set = true
 end
 
 M.cmd.UnmapInterlaced = function()
+  if not M._is_mappings_set then
+    M.warning("Keybindings already off, nothing to do")
+    return
+  end
   for keystroke, mapping in pairs(M._orig_mappings) do
     if vim.tbl_isempty(mapping) then
       vim_api.nvim_buf_del_keymap(0, "n", keystroke)
@@ -89,7 +97,7 @@ M.cmd.UnmapInterlaced = function()
       vim_fn.mapset("n", false, mapping)
     end
   end
-  M.info("Keybindings have been disabled.")
+  M.info("Keybindings off")
   M._is_mappings_set = false
 end
 
