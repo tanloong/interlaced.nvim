@@ -22,6 +22,10 @@ Join/split current line to align bilingual sentence pairs.
   </p>
 </details>
 
+## Requirements
+
++ Neovim >= **0.9.0**
+
 ## Installation
 
 + Using [lazy.nvim](https://github.com/folke/lazy.nvim)
