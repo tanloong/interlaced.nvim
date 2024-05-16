@@ -6,6 +6,7 @@ local getline = vim.fn.getline
 local vim_fn = vim.fn
 local vim_api = vim.api
 local vim_cmd = vim.cmd
+local vim_uv = vim.uv or vim.loop
 local create_command = vim_api.nvim_create_user_command
 
 local config = require("interlaced.config")
@@ -213,7 +214,7 @@ end
 -- @return string
 _H.get_timestr = function()
   local timestr = os.date("%Y-%m-%d.%H-%M-%S")
-  local stamp = tostring(math.floor(vim.loop.hrtime() / 1000000) % 1000)
+  local stamp = tostring(math.floor(vim_uv.hrtime() / 1000000) % 1000)
   while #stamp < 3 do
     stamp = "0" .. stamp
   end
