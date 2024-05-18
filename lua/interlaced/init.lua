@@ -204,9 +204,9 @@ M.cmd.NavigateUp = function()
   vim_cmd([[normal! 03k]])
 end
 
--- @param lines1 table
--- @param lines2 table
--- @return table
+---@param lines1 (string|nil)[]
+---@param lines2 (string|nil)[]
+---@return string[]
 _H.zip = function(lines1, lines2)
   local lines = {}
   local len1, len2 = #lines1, #lines2
@@ -219,7 +219,7 @@ _H.zip = function(lines1, lines2)
   return lines
 end
 
--- @return string
+---@return string
 _H.get_timestr = function()
   local timestr = os.date("%Y-%m-%d.%H-%M-%S")
   local stamp = tostring(math.floor(vim_uv.hrtime() / 1000000) % 1000)
@@ -229,9 +229,9 @@ _H.get_timestr = function()
   return timestr .. "." .. stamp
 end
 
--- @param params table
--- @param is_curbuf_L1 boolean
--- @return nil
+---@param params table
+---@param is_curbuf_L1 boolean
+---@return nil
 _H.interlace = function(params, is_curbuf_L1)
   local filepath = params.args
   local fh, err = io.open(filepath, "r")
@@ -257,14 +257,14 @@ _H.interlace = function(params, is_curbuf_L1)
   end
 end
 
--- @param params table
--- @return nil
+---@param params table
+---@return nil
 M.cmd.InterlaceWithL1 = function(params)
   _H.interlace(params, false)
 end
 
--- @param params table
--- @return nil
+---@param params table
+---@return nil
 M.cmd.InterlaceWithL2 = function(params)
   _H.interlace(params, true)
 end
@@ -317,15 +317,15 @@ M.cmd.SplitEnglishSentences = function()
   _H.SplitHelper(regex)
 end
 
--- @param shortcut string
--- @return nil
+---@param shortcut string
+---@return nil
 _H.store_orig_mapping = function(shortcut)
   mapping = vim_fn.maparg(shortcut, "n", false, true)
   M._orig_mappings[shortcut] = mapping
 end
 
--- @param opts table
--- @return nil
+---@param opts table
+---@return nil
 M.setup = function(opts)
   opts = opts or {}
   if type(opts) ~= "table" then
