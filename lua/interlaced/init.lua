@@ -119,7 +119,9 @@ M.cmd.JoinUp = function()
   setline(lineno - 3, "")
 
   _H.delete_trailing_empty_lines()
-  vim_cmd("w")
+  if M.config.auto_save then
+    vim_cmd("w")
+  end
 end
 
 M.cmd.JoinUpPair = function()
@@ -188,7 +190,9 @@ M.cmd.SplitAtCursor = function()
   setline(lineno + 3, vim_fn.substitute(after_cursor, [[^\s\+]], "", ""))
 
   _H.delete_trailing_empty_lines()
-  vim_cmd("w")
+  if M.config.auto_save then
+    vim_cmd("w")
+  end
 end
 
 M.cmd.JoinDown = function()
@@ -301,14 +305,16 @@ _H.SplitHelper = function(regex)
     vim_fn.deletebufline(buf, i)
     vim_fn.append(i - 1, sents)
   end
-  vim_cmd([[w]])
+  if M.config.auto_save then
+    vim_cmd("w")
+  end
 end
 
 M.cmd.SplitChineseSentences = function()
   -- :h split()
   -- Use '\zs' at the end of the pattern to keep the separator.
   -- :echo split('bar:foo', ':\zs')
-  local regex = [[\v[…。!！?？—]+[’”"]?\zs]]
+  local regex = [[\v[…。!！?？]+[”"’'）)】]*\zs]]
   _H.SplitHelper(regex)
 end
 
