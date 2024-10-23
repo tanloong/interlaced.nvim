@@ -323,6 +323,34 @@ M.cmd.SplitEnglishSentences = function()
   _H.SplitHelper(regex)
 end
 
+---@param a table
+---@return nil
+M.cmd.Interlace = function(a)
+  local x, y
+  local arg_count = #a.fargs
+
+  if arg_count == 0 then
+    x, y = 1, 1
+  elseif arg_count == 1 then
+    x, y = tonumber(a.fargs[1]), tonumber(a.fargs[1])
+  elseif arg_count == 2 then
+    x, y = tonumber(a.fargs[1]), tonumber(a.fargs[2])
+  else
+    M.warning("Argument Error: can have at most 2 arguments")
+  end
+
+  local i = a.line1 + x - 1
+  local total = a.line2 - a.line1 + 1
+  local j = math.floor(total / (x + y)) * x + a.line1
+
+  while j < a.line2 do
+    local range = y > 1 and j .. "," .. (j + y) or j
+    vim.cmd(range .. "move " .. i)
+    i = i + y + x
+    j = j + y
+  end
+end
+
 ---@param shortcut string
 ---@return nil
 _H.store_orig_mapping = function(shortcut)
@@ -345,9 +373,10 @@ M.setup = function(opts)
   end
 
   for cmd, func in pairs(M.cmd) do
-    create_command(cmd, function(params) func(params) end, {
-      nargs = cmd:find("L%d$") and 1 or 0,
+    create_command(cmd, func, {
+      nargs = cmd:find("L%d$") and 1 or cmd == "Interlace" and "*" or 0,
       complete = cmd:find("L%d$") and "file" or nil,
+      range = cmd == "Interlace" and "%" or nil,
     })
   end
 end
