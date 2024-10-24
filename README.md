@@ -45,7 +45,7 @@ Join/split current line to align bilingual sentence pairs.
 
 Bellow is a linked snippet with the default values.
 
-https://github.com/tanloong/interlaced.nvim/blob/a74a72dcfc3a4a5208ace8cfbcf8c182e779c4fa/lua/interlaced/config.lua#L1-L18
+https://github.com/tanloong/interlaced.nvim/blob/a29139456f39e1fa52a44c7fb6a05b447dee2c4c/lua/interlaced/config.lua#L1-L19
 
 ## Commands
 

@@ -1,11 +1,11 @@
 local config = {
   mappings = {
-    JoinUp = ",",
-    JoinUpPair = "<",
+    PushUp = ",",
+    PushUpPair = "<",
     PullUp = ".",
     PullUpPair = ">",
     SplitAtCursor = "d",
-    JoinDown = "D",
+    PushDown = "D",
     NavigateDown = "J",
     NavigateUp = "K"
   },
