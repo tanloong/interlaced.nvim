@@ -101,10 +101,10 @@ M.cmd.UnmapInterlaced = function()
   M._is_mappings_set = false
 end
 
-M.cmd.JoinUp = function()
+M.cmd.PushUp = function()
   local lineno = vim_fn.line(".")
   if lineno <= 3 then
-    M.warning("Joining too early, please move down your cursor.")
+    M.warning("Pushing too early, please move down your cursor.")
     return
   end
 
@@ -124,12 +124,12 @@ M.cmd.JoinUp = function()
   end
 end
 
-M.cmd.JoinUpPair = function()
+M.cmd.PushUpPair = function()
   local here = vim_fn.getpos(".")
   vim_cmd([[normal! {]])
   for _ = 1, 2 do
     vim_fn.setcursorcharpos({ vim_fn.line(".") + 1, 1 })
-    M.cmd.JoinUp()
+    M.cmd.PushUp()
   end
   vim_fn.setpos(".", here)
 end
@@ -144,7 +144,7 @@ M.cmd.PullUp = function()
   end
 
   vim_fn.setcursorcharpos({ curr_lineno + 3, 1 })
-  M.cmd.JoinUp()
+  M.cmd.PushUp()
   vim_fn.setpos(".", here)
 end
 
@@ -160,7 +160,7 @@ M.cmd.PullUpPair = function()
   vim_cmd([[normal! }]])
   for _ = 1, 2 do
     vim_fn.setcursorcharpos({ vim_fn.line(".") + 1, 1 })
-    M.cmd.JoinUp()
+    M.cmd.PushUp()
   end
   vim_fn.setpos(".", here)
 end
@@ -195,7 +195,7 @@ M.cmd.SplitAtCursor = function()
   end
 end
 
-M.cmd.JoinDown = function()
+M.cmd.PushDown = function()
   vim_cmd([[normal! 0]])
   M.cmd.SplitAtCursor()
 end
