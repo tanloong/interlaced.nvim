@@ -290,8 +290,9 @@ M.cmd.Deinterlace = function()
   local filepath1, filepath2 = timestr .. ".l1.txt", timestr .. ".l2.txt"
   vim_fn.writefile(lines_l1, filepath1)
   vim_fn.writefile(lines_l2, filepath2)
-  vim.cmd("belowright split" .. filepath1)
-  vim.cmd("belowright vsplit" .. filepath2)
+  vim.cmd("belowright split +1 " .. filepath1 .. " | setlocal scrollbind nowrap nofoldenable")
+  vim.cmd("belowright vsplit +1 " .. filepath2 .. " | setlocal scrollbind nowrap nofoldenable")
+  vim.cmd("syncbind")
 end
 
 _H.SplitHelper = function(regex)
