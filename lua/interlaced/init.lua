@@ -303,8 +303,10 @@ _H.SplitHelper = function(regex)
     line = getline(i)
     local sents = vim_fn.split(line, regex)
 
-    vim_fn.deletebufline(buf, i)
-    vim_fn.append(i - 1, sents)
+    if #sents > 1 then
+      vim_fn.deletebufline(buf, i)
+      vim_fn.append(i - 1, sents)
+    end
   end
   if M.config.auto_save then
     vim_cmd("w")
