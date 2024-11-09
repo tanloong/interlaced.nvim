@@ -322,7 +322,7 @@ M.cmd.SplitChineseSentences = function()
 end
 
 M.cmd.SplitEnglishSentences = function()
-  local regex = [[\v(%(%(\u\l{,2})@<!(\.\a)@<!\.|[!?])+['’"”]?)%(\s|$)\zs]]
+  local regex = [[\v%(%(%(<al)@<!%(\u\l{,2})@<!(\.\a)@<!\.|[!?])+['’"”]?)%(\s|$)\zs]]
   _H.SplitHelper(regex)
 end
 
