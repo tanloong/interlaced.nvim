@@ -295,11 +295,13 @@ M.cmd.Deinterlace = function()
   vim.cmd("syncbind")
 end
 
-_H.SplitHelper = function(regex)
+---@param regex string
+---@param a table
+---@return nil
+_H.SplitHelper = function(regex, a)
   -- cmd([[saveas! %.splitted]])
   local buf = vim_api.nvim_get_current_buf()
-  local last_lineno = vim_fn.line("$")
-  for i = last_lineno, 1, -1 do
+  for i = a.line2, a.line1, -1 do
     line = getline(i)
     local sents = vim_fn.split(line, regex)
 
@@ -313,17 +315,21 @@ _H.SplitHelper = function(regex)
   end
 end
 
-M.cmd.SplitChineseSentences = function()
+---@param a table
+---@return nil
+M.cmd.SplitChineseSentences = function(a)
   -- :h split()
   -- Use '\zs' at the end of the pattern to keep the separator.
   -- :echo split('bar:foo', ':\zs')
   local regex = [[\v[…。!！?？]+[”"’'）)】]*\zs]]
-  _H.SplitHelper(regex)
+  _H.SplitHelper(regex, a)
 end
 
-M.cmd.SplitEnglishSentences = function()
+---@param a table
+---@return nil
+M.cmd.SplitEnglishSentences = function(a)
   local regex = [[\v%(%(%(<al)@<!%(\u\l{,2})@<!(\.\a)@<!\.|[!?])+['’"”]?)%(\s|$)\zs]]
-  _H.SplitHelper(regex)
+  _H.SplitHelper(regex, a)
 end
 
 ---@param a table
@@ -379,7 +385,9 @@ M.setup = function(opts)
     create_command(cmd, func, {
       nargs = cmd:find("L%d$") and 1 or cmd == "Interlace" and "*" or 0,
       complete = cmd:find("L%d$") and "file" or nil,
-      range = cmd == "Interlace" and "%" or nil,
+      -- range=%: Range allowed, default is whole file (1,$)
+      -- note: should let only sentence splitting funcs have names beginning with 'Split'
+      range = (cmd == "Interlace" or cmd:find("^Split")) and "%" or nil,
     })
   end
 end
