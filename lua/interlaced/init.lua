@@ -165,7 +165,7 @@ M.cmd.PullUpPair = function()
   vim_fn.setpos(".", here)
 end
 
-M.cmd.SplitAtCursor = function()
+M.cmd.PushDownRightPart = function()
   local lineno = vim_fn.line(".")
   local last_lineno = vim_fn.line("$")
 
@@ -197,7 +197,7 @@ end
 
 M.cmd.PushDown = function()
   vim_cmd([[normal! 0]])
-  M.cmd.SplitAtCursor()
+  M.cmd.PushDownRightPart()
 end
 
 M.cmd.NavigateDown = function()
