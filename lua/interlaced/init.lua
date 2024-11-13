@@ -8,6 +8,8 @@ local vim_api = vim.api
 local vim_cmd = vim.cmd
 local vim_uv = vim.uv or vim.loop
 local create_command = vim_api.nvim_create_user_command
+local autocmd = vim_api.nvim_create_autocmd
+local augroup = vim_api.nvim_create_augroup
 
 local config = require("interlaced.config")
 local _H = {}
@@ -16,6 +18,11 @@ local M = {
   _Name = "Interlaced",
   _orig_mappings = {},
   _is_mappings_set = false,
+  _patterns = {},
+  -- A list of regex patterns (named entities, numbers, dates, etc) users want to highlight
+  -- :h matchadd()
+  -- Matching is case sensitive and magic, unless case sensitivity
+  -- or magicness are explicitly overridden in {pattern}.  The
   config = {},
   cmd = {},
 }
@@ -236,7 +243,7 @@ end
 ---@param params table
 ---@param is_curbuf_L1 boolean
 ---@return nil
-_H.interlace = function(params, is_curbuf_L1)
+_H.InterlaceWithLx = function(params, is_curbuf_L1)
   local filepath = params.args
   local fh, err = io.open(filepath, "r")
   if not fh then
@@ -264,13 +271,13 @@ end
 ---@param params table
 ---@return nil
 M.cmd.InterlaceWithL1 = function(params)
-  _H.interlace(params, false)
+  _H.InterlaceWithLx(params, false)
 end
 
 ---@param params table
 ---@return nil
 M.cmd.InterlaceWithL2 = function(params)
-  _H.interlace(params, true)
+  _H.InterlaceWithLx(params, true)
 end
 
 M.cmd.Deinterlace = function()
@@ -360,6 +367,31 @@ M.cmd.Interlace = function(a)
   end
 end
 
+M.cmd.SaveWorkspace = function()
+  local data = { curpos = vim_fn.getpos("."), matches = vim_fn.getmatches() }
+  -- the json string will be written to the frist line
+  pcall(vim.fn.writefile, { vim.json.encode(data) }, ".interlaced.json", "")
+end
+
+M.cmd.LoadWorkspace = function()
+  -- read only the first line
+  local ok, ret = pcall(vim.fn.readfile, ".interlaced.json", "", 1)
+  -- ret is a list that contains only the json string element
+  if not ok or #ret == 0 then return end
+  data = vim.json.decode(ret[1])
+
+  vim_fn.setpos(".", data.curpos)
+  vim_fn.setmatches(data.matches)
+end
+
+M.cmd.ListMatches = function()
+  local matches = vim.fn.getmatches()
+  for i, m in pairs(matches) do
+    pcall(vim.print, i ..
+      ". " .. "pattern: " .. m.pattern .. ", id: " .. m.id .. ", group: " .. m.group .. ", priority: " .. m.priority)
+  end
+end
+
 ---@param shortcut string
 ---@return nil
 _H.store_orig_mapping = function(shortcut)
@@ -381,6 +413,7 @@ M.setup = function(opts)
     M.cmd.MapInterlaced()
   end
 
+  -- create commands
   for cmd, func in pairs(M.cmd) do
     create_command(M.config.cmd_prefix .. cmd, func, {
       nargs = cmd:find("L%d$") and 1 or cmd == "Interlace" and "*" or 0,
@@ -390,6 +423,15 @@ M.setup = function(opts)
       range = (cmd == "Interlace" or cmd:find("^Split")) and "%" or nil,
     })
   end
+
+  -- save workspace info on exit
+  autocmd({ "BufWinLeave" }, {
+    buffer = 0,
+    group = augroup("interlaced.nvim", { clear = true }),
+    callback = function()
+
+    end
+  })
 end
 
 return M
