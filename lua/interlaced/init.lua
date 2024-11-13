@@ -382,7 +382,7 @@ M.setup = function(opts)
   end
 
   for cmd, func in pairs(M.cmd) do
-    create_command(cmd, func, {
+    create_command(M.config.cmd_prefix .. cmd, func, {
       nargs = cmd:find("L%d$") and 1 or cmd == "Interlace" and "*" or 0,
       complete = cmd:find("L%d$") and "file" or nil,
       -- range=%: Range allowed, default is whole file (1,$)

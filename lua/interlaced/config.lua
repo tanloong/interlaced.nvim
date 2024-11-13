@@ -16,6 +16,7 @@ local config = {
   separator_L2 = " ",
   -- save on text reposition, i.e., pushing, pulling, sentence splitting.
   auto_save = true,
+  cmd_prefix = "It",
 }
 
 return config
