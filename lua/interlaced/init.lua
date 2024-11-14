@@ -386,9 +386,67 @@ end
 
 M.cmd.ListMatches = function()
   local matches = vim.fn.getmatches()
-  for i, m in pairs(matches) do
-    pcall(vim.print, i ..
-      ". " .. "pattern: " .. m.pattern .. ", id: " .. m.id .. ", group: " .. m.group .. ", priority: " .. m.priority)
+  for _, m in pairs(matches) do
+    pcall(vim.print,
+      "pattern: " .. m.pattern .. ", id: " .. m.id .. ", group: " .. m.group .. ", priority: " .. m.priority)
+  end
+end
+
+-- :ItMatchAdd add the <cword>, very nomagically
+-- :ItMatchAdd <pattern> [<pattern>, ...] add the pattern(s)
+-- :'<,'>ItMatchAdd add the charwise visual text, but refuse if '< and '> are not on the same line
+M.cmd.MatchAdd = function(a)
+  local patterns = nil
+  if #a.args == 0 then
+    if a.range == 2 then
+      if a.line1 == a.line2 then
+        patterns = vim_fn.getregion(vim_fn.getpos("'<"), vim_fn.getpos("'>"), { type = "v" })
+      else
+        M.warning("Not under charwise visual mode, did nothing")
+        return
+      end
+    else
+      -- with {list} set as true, expand() will return list instead of string
+      ---@type table
+      patterns = vim_fn.expand("<cword>", false, true)
+    end
+
+    -- make each pattern "very nomagic"
+    for i, v in ipairs(patterns) do
+      patterns[i] = [[\V]] .. v
+    end
+  else
+    patterns = a.fargs
+  end
+  -- patterns will always be list
+  for _, pattern in ipairs(patterns) do
+    vim_fn.matchadd("Search", pattern)
+  end
+end
+
+--:ItMatchDelete print matches an choose one
+--:ItMatchDelete -1 delete the most recently added match
+--:ItMatchDelete n delete match whose id is n
+M.cmd.MatchDelete = function(a)
+  local id = nil
+  if #a.args == 0 then
+    M.cmd.ListMatches()
+    id = vim_fn.input({ prompt = "Choose an id: " })
+  elseif a.args == "-1" then
+    -- use the id of the most recently added match
+    local matches = vim_fn.getmatches()
+    if #matches == 0 then
+      M.warning("No matches to delete")
+      return
+    end
+    id = matches[#matches].id
+  else
+    id = a.args
+  end
+
+  ok, msg = pcall(vim_fn.matchdelete, id)
+  if not ok then
+    M.warning(msg)
   end
 end
 
@@ -414,13 +472,14 @@ M.setup = function(opts)
   end
 
   -- create commands
+  -- :h lua-guide-commands-create
   for cmd, func in pairs(M.cmd) do
     create_command(M.config.cmd_prefix .. cmd, func, {
-      nargs = cmd:find("L%d$") and 1 or cmd == "Interlace" and "*" or 0,
+      nargs = cmd:find("L%d$") and 1 or (cmd == "Interlace" or cmd:find("^Match")) and "*" or 0,
       complete = cmd:find("L%d$") and "file" or nil,
       -- range=%: Range allowed, default is whole file (1,$)
       -- note: should let only sentence splitting funcs have names beginning with 'Split'
-      range = (cmd == "Interlace" or cmd:find("^Split")) and "%" or nil,
+      range = (cmd == "Interlace" or cmd:find("^Split")) and "%" or cmd:find("^Match") and true or nil,
     })
   end
 
@@ -428,9 +487,7 @@ M.setup = function(opts)
   autocmd({ "BufWinLeave" }, {
     buffer = 0,
     group = augroup("interlaced.nvim", { clear = true }),
-    callback = function()
-
-    end
+    callback = M.cmd.SaveWorkspace,
   })
 end
 
