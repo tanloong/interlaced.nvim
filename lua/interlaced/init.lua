@@ -367,21 +367,36 @@ M.cmd.Interlace = function(a)
   end
 end
 
-M.cmd.SaveWorkspace = function()
+M.cmd.Dump = function(a)
+  local path = nil
+  if #a.args == 0 then
+    path = ".interlaced.json"
+  else
+    path = a.args
+  end
   local data = { curpos = vim_fn.getpos("."), matches = vim_fn.getmatches() }
   -- the json string will be written to the frist line
-  pcall(vim.fn.writefile, { vim.json.encode(data) }, ".interlaced.json", "")
+  pcall(vim.fn.writefile, { vim.json.encode(data) }, path, "")
 end
 
-M.cmd.LoadWorkspace = function()
-  -- read only the first line
-  local ok, ret = pcall(vim.fn.readfile, ".interlaced.json", "", 1)
-  -- ret is a list that contains only the json string element
-  if not ok or #ret == 0 then return end
-  data = vim.json.decode(ret[1])
+M.cmd.Load = function(a)
+  local path = nil
+  if #a.args == 0 then
+    path = ".interlaced.json"
+  else
+    path = a.args
+  end
 
-  vim_fn.setpos(".", data.curpos)
-  vim_fn.setmatches(data.matches)
+  -- read only the first line
+  local ok, ret = pcall(vim.fn.readfile, path, "", 1)
+  -- ret is a list that contains only the json string element
+  if not ok then return end
+
+  ok, ret = pcall(vim.json.decode, ret[1])
+  if not ok then return end
+
+  vim_fn.setpos(".", ret.curpos)
+  vim_fn.setmatches(ret.matches)
 end
 
 M.cmd.ListMatches = function()
@@ -390,6 +405,10 @@ M.cmd.ListMatches = function()
     pcall(vim.print,
       "pattern: " .. m.pattern .. ", id: " .. m.id .. ", group: " .. m.group .. ", priority: " .. m.priority)
   end
+end
+
+M.cmd.ClearMatches = function()
+  vim_fn.clearmatches()
 end
 
 -- :ItMatchAdd add the <cword>, very nomagically
@@ -475,11 +494,17 @@ M.setup = function(opts)
   -- :h lua-guide-commands-create
   for cmd, func in pairs(M.cmd) do
     create_command(M.config.cmd_prefix .. cmd, func, {
-      nargs = cmd:find("L%d$") and 1 or (cmd == "Interlace" or cmd:find("^Match")) and "*" or 0,
-      complete = cmd:find("L%d$") and "file" or nil,
+      nargs = cmd:find("L%d$") and 1 or
+          (cmd == "Interlace" or cmd:find("^Match")) and "*" or
+          (cmd == "Dump" or cmd == "Load") and "?" or
+          0,
+      complete = (cmd:find("L%d$") or cmd == "Dump" or cmd == "Load") and "file" or
+          nil,
       -- range=%: Range allowed, default is whole file (1,$)
       -- note: should let only sentence splitting funcs have names beginning with 'Split'
-      range = (cmd == "Interlace" or cmd:find("^Split")) and "%" or cmd:find("^Match") and true or nil,
+      range = (cmd == "Interlace" or cmd:find("^Split")) and "%" or
+          cmd:find("^Match") and true or
+          nil,
     })
   end
 
@@ -487,7 +512,7 @@ M.setup = function(opts)
   autocmd({ "BufWinLeave" }, {
     buffer = 0,
     group = augroup("interlaced.nvim", { clear = true }),
-    callback = M.cmd.SaveWorkspace,
+    callback = M.cmd.Dump,
   })
 end
 
