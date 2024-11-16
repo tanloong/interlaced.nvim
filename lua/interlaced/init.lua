@@ -281,26 +281,33 @@ M.cmd.InterlaceWithL2 = function(params)
 end
 
 M.cmd.Deinterlace = function(a)
-  -- {start} is zero-based, so a.line1 - 1
-  local lines = vim_api.nvim_buf_get_lines(0, a.line1 - 1, a.line2, true)
+  -- 0 does not indicate current buffer to deletebufline(), has to use nvim_get_current_buf()
+  local buf = vim_api.nvim_get_current_buf()
+
+  -- {start} is zero-based, thus (a.line1 - 1) and (a.line2 - 1)
+  -- {end} is exclusive, thus (a.line2 - 1 + 1), thus a.line2
+  local lines = vim_api.nvim_buf_get_lines(buf, a.line1 - 1, a.line2, false)
+
+  -- remove leading and trailing empty lines
+  while lines[#lines] == "" do
+    table.remove(lines)
+  end
+  while lines[1] == "" do
+    table.remove(lines, 1)
+  end
+
+  -- get lines in l1 and l2
   local lines_l1, lines_l2 = {}, {}
   for i = 1, #lines, 3 do
     table.insert(lines_l1, lines[i])
     table.insert(lines_l2, lines[i + 1])
   end
-  while lines_l1[#lines_l1] == "" do
-    table.remove(lines_l1)
-  end
-  while lines_l2[#lines_l2] == "" do
-    table.remove(lines_l2)
-  end
-  local timestr = _H.get_timestr()
-  local filepath1, filepath2 = timestr .. ".l1.txt", timestr .. ".l2.txt"
-  vim_fn.writefile(lines_l1, filepath1)
-  vim_fn.writefile(lines_l2, filepath2)
-  vim.cmd("belowright split +1 " .. filepath1 .. " | setlocal scrollbind nowrap nofoldenable")
-  vim.cmd("belowright vsplit +1 " .. filepath2 .. " | setlocal scrollbind nowrap nofoldenable")
-  vim.cmd("syncbind")
+
+  -- {start}, {end} is inclusive, used like with getline(), which is 1-based,
+  -- thus not (a.line1 - 1)
+  vim_fn.deletebufline(buf, a.line1, a.line2)
+  vim_fn.append(a.line1 - 1, lines_l1)
+  vim_fn.append(a.line1 - 1 + #lines_l1, lines_l2)
 end
 
 ---@param regex string
