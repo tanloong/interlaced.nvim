@@ -280,8 +280,9 @@ M.cmd.InterlaceWithL2 = function(params)
   _H.InterlaceWithLx(params, true)
 end
 
-M.cmd.Deinterlace = function()
-  local lines = vim_api.nvim_buf_get_lines(0, 0, -1, true)
+M.cmd.Deinterlace = function(a)
+  -- {start} is zero-based, so a.line1 - 1
+  local lines = vim_api.nvim_buf_get_lines(0, a.line1 - 1, a.line2, true)
   local lines_l1, lines_l2 = {}, {}
   for i = 1, #lines, 3 do
     table.insert(lines_l1, lines[i])
@@ -369,7 +370,8 @@ end
 
 M.cmd.Dump = function(a)
   local path = nil
-  if #a.args == 0 then
+  -- a.args == nil: the BufWinLeave autocmd below calls this func without args
+  if a.args == nil or #a.args == 0 then
     path = ".interlaced.json"
   else
     path = a.args
@@ -502,7 +504,7 @@ M.setup = function(opts)
           nil,
       -- range=%: Range allowed, default is whole file (1,$)
       -- note: should let only sentence splitting funcs have names beginning with 'Split'
-      range = (cmd == "Interlace" or cmd:find("^Split")) and "%" or
+      range = (cmd == "Interlace" or cmd == "Deinterlace" or cmd:find("^Split")) and "%" or
           cmd:find("^Match") and true or
           nil,
     })
