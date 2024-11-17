@@ -12,6 +12,7 @@ local autocmd = vim_api.nvim_create_autocmd
 local augroup = vim_api.nvim_create_augroup
 
 local config = require("interlaced.config")
+local highlights = require("interlaced.highlights")
 local _H = {}
 local M = {
   _H = _H,
@@ -408,63 +409,120 @@ M.cmd.Load = function(a)
   vim_fn.setmatches(ret.matches)
 end
 
+---@return boolean false if there is no matches to show
 M.cmd.ListMatches = function()
   local matches = vim.fn.getmatches()
-  for _, m in pairs(matches) do
-    pcall(vim.print,
-      "pattern: " .. m.pattern .. ", id: " .. m.id .. ", group: " .. m.group .. ", priority: " .. m.priority)
+  if #matches == 0 then
+    return false
   end
+  for _, m in pairs(matches) do
+    -- so dirty :(
+    vim.cmd("echon " .. "'id " .. m.id .. "'" ..
+      " | echon '\t'" ..
+      " | echon " .. "'" .. (m.pattern or "") .. "'" ..
+      " | echon '\t'" ..
+      " | echohl " .. m.group ..
+      " | echon " .. "'" .. m.group .. "'" ..
+      " | echohl None" ..
+      " | echon '\t'" ..
+      " | echon " .. "'priority " .. (m.priority or "") .. "'" ..
+      " | echo ''"
+    )
+  end
+  return true
 end
 
 M.cmd.ClearMatches = function()
   vim_fn.clearmatches()
 end
 
--- :ItMatchAdd add the <cword>, very nomagically
--- :ItMatchAdd <pattern> [<pattern>, ...] add the pattern(s)
--- :'<,'>ItMatchAdd add the charwise visual text, but refuse if '< and '> are not on the same line
+M.cmd.ListHighlights = function()
+  vim.cmd([[filter /\v^]] .. highlights.group_prefix .. "/ highlight")
+end
+
+M.cmd.MatchAddVisual = function(a)
+  if #a.fargs > 1 then
+    M.error("At most 1 argument is expected but got " .. #a.fargs)
+    return
+  end
+
+  local patterns = vim_fn.getregion(vim_fn.getpos("'<"), vim_fn.getpos("'>"), { type = "v" })
+  for i, v in ipairs(patterns) do
+    patterns[i] = [[\V]] .. v
+  end
+
+  local color = a.args
+  highlights.highlight(color, patterns)
+end
+
 M.cmd.MatchAdd = function(a)
   local patterns = nil
-  if #a.args == 0 then
-    if a.range == 2 then
-      if a.line1 == a.line2 then
-        patterns = vim_fn.getregion(vim_fn.getpos("'<"), vim_fn.getpos("'>"), { type = "v" })
-      else
-        M.warning("Not under charwise visual mode, did nothing")
-        return
-      end
-    else
-      -- with {list} set as true, expand() will return list instead of string
-      ---@type table
-      patterns = vim_fn.expand("<cword>", false, true)
-    end
+  local color = nil
 
-    -- make each pattern "very nomagic"
+  -- handle range
+  -- :i,jItMatchAdd
+  -- :.ItMatchAdd
+  if a.range > 0 then
+    -- getline() returns a list if {end} is provided
+    ---@type table
+    patterns = vim_fn.getline(a.line1, a.line2)
     for i, v in ipairs(patterns) do
       patterns[i] = [[\V]] .. v
     end
+  end
+
+  -- handle color and pattern(s)
+  if #a.fargs > 1 then
+    -- :ItMatchAdd {group} {pattern}
+    -- :ItMatchAdd {group} {pattern1} {pattern2} ...
+    color = table.remove(a.fargs, 1)
+    if patterns == nil then
+      patterns = a.fargs
+    else
+      -- :{range}ItMatchAdd group pattern
+      -- :{range}ItMatchAdd group pattern1 pattern2 ...
+      for pat in a.fargs do
+        patterns:insert(pat)
+      end
+    end
   else
-    patterns = a.fargs
+    -- :ItMatchAdd {group} (a.fargs == 1)
+    -- :ItMatchAdd (a.fargs == 1)
+    -- :{range}ItMatchAdd (a.fargs == 1)
+    color = a.args
   end
-  -- patterns will always be list
-  for _, pattern in ipairs(patterns) do
-    vim_fn.matchadd("Search", pattern)
+
+  -- :ItMatchAdd [group]
+  if patterns == nil then
+    -- with {list} set as true, expand() will return list instead of string
+    ---@type table
+    patterns = vim_fn.expand("<cword>", false, true)
+    -- search matches that forms whole words
+    for i, v in ipairs(patterns) do
+      patterns[i] = [[\<]] .. v .. [[\>]]
+    end
   end
+
+  -- patterns is list for all above occasions
+  highlights.highlight(color, patterns)
 end
 
 --:ItMatchDelete print matches an choose one
---:ItMatchDelete -1 delete the most recently added match
+--:ItMatchDelete . deletes the most recently added match
 --:ItMatchDelete n delete match whose id is n
 M.cmd.MatchDelete = function(a)
   local id = nil
   if #a.args == 0 then
-    M.cmd.ListMatches()
+    ret = M.cmd.ListMatches()
+    if not ret then
+      return
+    end
     id = vim_fn.input({ prompt = "Choose an id: " })
-  elseif a.args == "-1" then
+  elseif a.args == "." then
     -- use the id of the most recently added match
     local matches = vim_fn.getmatches()
     if #matches == 0 then
-      M.warning("No matches to delete")
+      M.error("No matches to delete")
       return
     end
     id = matches[#matches].id
@@ -474,7 +532,8 @@ M.cmd.MatchDelete = function(a)
 
   ok, msg = pcall(vim_fn.matchdelete, id)
   if not ok then
-    M.warning(msg)
+    M.error(msg)
+    M.cmd.MatchDelete(a)
   end
 end
 
@@ -501,21 +560,54 @@ M.setup = function(opts)
 
   -- create commands
   -- :h lua-guide-commands-create
-  for cmd, func in pairs(M.cmd) do
-    create_command(M.config.cmd_prefix .. cmd, func, {
-      nargs = cmd:find("L%d$") and 1 or
-          (cmd == "Interlace" or cmd:find("^Match")) and "*" or
-          (cmd == "Dump" or cmd == "Load") and "?" or
-          0,
-      complete = (cmd:find("L%d$") or cmd == "Dump" or cmd == "Load") and "file" or
-          nil,
-      -- range=%: Range allowed, default is whole file (1,$)
-      -- note: should let only sentence splitting funcs have names beginning with 'Split'
-      range = (cmd == "Interlace" or cmd == "Deinterlace" or cmd:find("^Split")) and "%" or
-          cmd:find("^Match") and true or
-          nil,
-    })
-  end
+  create_command(M.config.cmd_prefix .. "ClearMatches", M.cmd.ClearMatches,
+    { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "Deinterlace", M.cmd.Deinterlace,
+    { nargs = 0, range = "%" })
+  create_command(M.config.cmd_prefix .. "Dump", M.cmd.Dump,
+    { complete = "file", nargs = "?" })
+  create_command(M.config.cmd_prefix .. "Interlace", M.cmd.Interlace,
+    { nargs = "*", range = "%" })
+  create_command(M.config.cmd_prefix .. "InterlaceWithL1", M.cmd.InterlaceWithL1,
+    { complete = "file", nargs = 1 })
+  create_command(M.config.cmd_prefix .. "InterlaceWithL2", M.cmd.InterlaceWithL2,
+    { complete = "file", nargs = 1 })
+  create_command(M.config.cmd_prefix .. "ListHighlights", M.cmd.ListHighlights,
+    { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "ListMatches", M.cmd.ListMatches,
+    { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "Load", M.cmd.Load,
+    { complete = "file", nargs = "?" })
+  create_command(M.config.cmd_prefix .. "MapInterlaced", M.cmd.MapInterlaced,
+    { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "MatchAdd", M.cmd.MatchAdd,
+    { complete = "highlight", nargs = "*", range = true })
+  create_command(M.config.cmd_prefix .. "MatchAddVisual", M.cmd.MatchAddVisual,
+    { complete = "highlight", nargs = "*", range = true })
+  create_command(M.config.cmd_prefix .. "MatchDelete", M.cmd.MatchDelete,
+    { nargs = "*", range = true })
+  create_command(M.config.cmd_prefix .. "NavigateDown", M.cmd.NavigateDown,
+    { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "NavigateUp", M.cmd.NavigateUp,
+    { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "PullUp", M.cmd.PullUp,
+    { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "PullUpPair", M.cmd.PullUpPair,
+    { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "PushDown", M.cmd.PushDown,
+    { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "PushDownRightPart", M.cmd.PushDownRightPart,
+    { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "PushUp", M.cmd.PushUp,
+    { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "PushUpPair", M.cmd.PushUpPair,
+    { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "SplitChineseSentences", M.cmd.SplitChineseSentences,
+    { nargs = 0, range = "%" })
+  create_command(M.config.cmd_prefix .. "SplitEnglishSentences", M.cmd.SplitEnglishSentences,
+    { nargs = 0, range = "%" })
+  create_command(M.config.cmd_prefix .. "UnmapInterlaced", M.cmd.UnmapInterlaced,
+    { nargs = 0 })
 
   -- save workspace info on exit
   autocmd({ "BufWinLeave" }, {

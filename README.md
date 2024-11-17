@@ -65,6 +65,6 @@ Line repositioning for bilingual sentence alignment.
 
 - `:ItSplitEnglishSentences`, `:ItSplitChineseSentences`: Identify sentence boundaries and insert a newline between them. Work linewise on the range when provided, the whole buffer if not.
 
-- `:ItMapInterlaced`, `:ItUnmapInterlaced`: `MapInterlaced` sets keybindings for text manipulations; `UnmapInterlaced` restores them to their previous mappings, if any.
+- `:ItMapInterlaced`, `:ItUnmapInterlaced`: `:MapInterlaced` sets keybindings for text manipulations; `UnmapInterlaced` restores them to their previous mappings, if any.
 
 - `:ItInterlaceWithL1`, `:ItInterlaceWithL2`: Take lines from the current buffer and interlaces them with lines from a specified file, forming an array of `(l1, l2)` pairs. Empty lines are filtered out. The resulting interlaced text is then saved to a new file and opened, then keybindings are setup if they have not been previously.

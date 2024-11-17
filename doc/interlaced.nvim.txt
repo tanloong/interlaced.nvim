@@ -1,0 +1,16 @@
+*interlaced.nvim*	Line repositioning for bilingual sentence alignment
+
+For Neovim >= 0.9.0.	Last change: 2024 November 17
+
+==============================================================================
+Table of Contents                                  *interlaced.nvim-table-of-contents*
+
+:[range]ItDeinterlace
+:[range]ItInterlace
+:[range]ItMatchAdd [pattern]
+:[range]ItSplitEnglishSentences
+:[range]ItSplitChineseSentences
+:ItMapInterlaced
+:ItUnmapInterlaced
+:ItInterlaceWithL1
+:ItInterlaceWithL2
