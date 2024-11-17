@@ -380,7 +380,7 @@ M.cmd.Dump = function(a)
   local path = nil
   -- a.args == nil: the BufWinLeave autocmd below calls this func without args
   if a.args == nil or #a.args == 0 then
-    path = ".interlaced.json"
+    path = vim.fs.joinpath(vim_fn.expand("%:h"), ".interlaced.json")
   else
     path = a.args
   end
@@ -392,7 +392,7 @@ end
 M.cmd.Load = function(a)
   local path = nil
   if #a.args == 0 then
-    path = ".interlaced.json"
+    path = vim.fs.joinpath(vim_fn.expand("%:h"), ".interlaced.json")
   else
     path = a.args
   end
@@ -608,13 +608,6 @@ M.setup = function(opts)
     { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "UnmapInterlaced", M.cmd.UnmapInterlaced,
     { nargs = 0 })
-
-  -- save workspace info on exit
-  autocmd({ "BufWinLeave" }, {
-    buffer = 0,
-    group = augroup("interlaced.nvim", { clear = true }),
-    callback = M.cmd.Dump,
-  })
 end
 
 return M
