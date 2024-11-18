@@ -191,7 +191,7 @@ M.cmd.PushDownRightPart = function()
   local after_cursor = current_line:sub(cursor_col)
 
   before_cursor = vim_fn.substitute(before_cursor, [[\s\+$]], "", "")
-  after_cursor =  vim_fn.substitute(after_cursor, [[^\s\+]], "", "")
+  after_cursor = vim_fn.substitute(after_cursor, [[^\s\+]], "", "")
 
   before_cursor = _H.removesuffix(before_cursor)
   after_cursor = _H.removeprefix(after_cursor)
@@ -210,38 +210,54 @@ M.cmd.PushDown = function()
   M.cmd.PushDownRightPart()
 end
 
-_H.normalize_sep = function(s)
-  local sep
-  if s == [['']] or s == [[""]] then
-    sep = ""
-  elseif s == [[\t]] then
-    sep = "\t"
-  else
-    sep = s
+M.cmd.SetSeparator = function(a)
+  -- :ItSetSeparator ?
+  if #a.fargs == 1 and a.args == "?" then
+    for l, sep in pairs(M.config.separators) do
+      vim.print("L" .. l .. ": '" .. sep .. "'")
+    end
+    return
   end
 
-  return sep
-end
-
-M.cmd.SetSeparatorL = function(a)
+  -- :ItSetSeparator {int} {str}
   if #a.fargs ~= 2 then
     M.error("Expected 2 arguments, got " .. #a.fargs)
     return
   end
   local l = a.fargs[1]
-  local sep = _H.normalize_sep(a.fargs[2])
+  local sep = a.fargs[2]
+
+  -- :ItSetSeparator {int} ''
+  -- :ItSetSeparator {int} ""
+  if sep == [['']] or sep == [[""]] then
+    sep = ""
+    -- :ItSetSeparator {int} \t
+  elseif sep == [[\t]] then
+    sep = "\t"
+  end
+
   M.config.separators[tostring(l)] = sep
-  M.info("Set L" .. l .. " separator as '" .. sep .. "'")
+  vim.print("L" .. l .. " separator: '" .. sep .. "'")
+end
+
+M.cmd.ListSeparators = function()
 end
 
 M.cmd.SetLangNum = function(a)
+  -- :ItSetLangNum ?
+  if a.args == "?" then
+    vim.print("Language number: " .. M.config.lang_num)
+    return
+  end
+
+  -- :ItSetLangNum {int}
   local n = tonumber(a.args)
   M.config.lang_num = n
 
   while #M.config.separators < n do
-    M.config.separators:insert(" ")
+    table.insert(M.config.separators, " ")
   end
-  M.info("Set language number as '" .. M.config.lang_num .. "'")
+  vim.print("Language number: " .. M.config.lang_num)
 end
 
 M.cmd.NavigateDown = function()
@@ -441,10 +457,15 @@ M.cmd.Load = function(a)
   ok, ret = pcall(vim.json.decode, ret[1])
   if not ok then return end
 
-  vim_fn.setpos(".", ret.curpos)
-  vim_fn.setmatches(ret.matches)
-
-  M.config = vim.tbl_deep_extend("force", M.config, ret.config)
+  if ret.curpos ~= nil then
+    vim_fn.setpos(".", ret.curpos)
+  end
+  if ret.matches ~= nil then
+    vim_fn.setmatches(ret.matches)
+  end
+  if ret.config ~= nil then
+    M.config = vim.tbl_deep_extend("force", M.config, ret.config)
+  end
 end
 
 ---@return boolean false if there is no matches to show
@@ -654,7 +675,7 @@ M.setup = function(opts)
     { nargs = 0 })
   create_command(M.config.cmd_prefix .. "PushUpPair", M.cmd.PushUpPair,
     { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "SetSeparatorL", M.cmd.SetSeparatorL, { nargs = "+" })
+  create_command(M.config.cmd_prefix .. "SetSeparator", M.cmd.SetSeparator, { nargs = "+" })
   create_command(M.config.cmd_prefix .. "SetLangNum", M.cmd.SetLangNum, { nargs = 1 })
   create_command(M.config.cmd_prefix .. "SplitChineseSentences", M.cmd.SplitChineseSentences,
     { nargs = 0, range = "%" })
