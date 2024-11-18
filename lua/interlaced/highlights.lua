@@ -535,15 +535,17 @@ end
 ---@param color string|nil
 ---@param patterns table
 M.highlight = function(color, patterns)
+  color = vim.trim(color)
   if color == "." then
     local matches = vim_fn.getmatches()
     color = matches[#matches].group
-  -- color is cmd-line args
-  -- if the caller accepts cmd-line args, a.args will be "" when not provided by user
-  -- if the caller is not defined to accept cmd-line args, a.args will be nil
-  -- cannot use `not color` because lua consider only nil and false as false, "" and 0 would be true
-  elseif color == nil or #color == 0 then
+    -- color is cmd-line args
+    -- if the caller accepts cmd-line args, a.args will be "" when not provided by user
+    -- if the caller is not defined to accept cmd-line args, a.args will be nil
+    -- cannot use `not color` because lua consider only nil and false as false, "" and 0 would be true
+  elseif color == "_" or color == nil or color:len() == 0 then
     color = M.randcolor()
+    -- else use {color} as is
   end
   for _, pattern in ipairs(patterns) do
     vim_fn.matchadd(color, pattern)

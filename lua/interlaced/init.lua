@@ -8,8 +8,6 @@ local vim_api = vim.api
 local vim_cmd = vim.cmd
 local vim_uv = vim.uv or vim.loop
 local create_command = vim_api.nvim_create_user_command
-local autocmd = vim_api.nvim_create_autocmd
-local augroup = vim_api.nvim_create_augroup
 
 local config = require("interlaced.config")
 local highlights = require("interlaced.highlights")
@@ -58,15 +56,13 @@ M.info = function(msg)
 end
 
 _H.append_to_3_lines_above = function(lineno)
-  local lineno_minus3 = lineno - 3
-  local lineno_minus1 = lineno - 1
+  local lineno_target = lineno - (M.config.lang_num + 1)
   local line = getline(lineno)
-  local line_minus3 = getline(lineno_minus3)
-  local line_minus1 = getline(lineno_minus1)
+  local line_target = getline(lineno_target)
 
-  local sep = M.config.separator_L2
-  if line_minus1 == "" or line_minus3 == "" then sep = M.config.separator_L1 end
-  setline(lineno_minus3, line_minus3:gsub("%s+$", "") .. sep .. line)
+  local seppos = tostring(lineno % (M.config.lang_num + 1))
+  local sep = M.config.separators[seppos]
+  setline(lineno_target, line_target:gsub("%s+$", "") .. sep .. line)
   setline(lineno, "")
 end
 
@@ -111,20 +107,20 @@ end
 
 M.cmd.PushUp = function()
   local lineno = vim_fn.line(".")
-  if lineno <= 3 then
+  if lineno <= M.config.lang_num + 1 then
     M.warning("Pushing too early, please move down your cursor.")
     return
   end
 
   _H.append_to_3_lines_above(lineno)
 
-  lineno = lineno + 3
+  lineno = lineno + M.config.lang_num + 1
   local last_lineno = vim_fn.line("$")
   while lineno <= last_lineno do
-    setline(lineno - 3, getline(lineno))
-    lineno = lineno + 3
+    setline(lineno - (M.config.lang_num + 1), getline(lineno))
+    lineno = lineno + M.config.lang_num + 1
   end
-  setline(lineno - 3, "")
+  setline(lineno - (M.config.lang_num + 1), "")
 
   _H.delete_trailing_empty_lines()
   if M.config.auto_save then
@@ -146,12 +142,12 @@ M.cmd.PullUp = function()
   local here = vim_fn.getpos(".")
   local curr_lineno = here[2]
   local last_lineno = vim_fn.line("$")
-  if last_lineno - curr_lineno < 3 then
+  if last_lineno - curr_lineno < M.config.lang_num + 1 then
     M.warning("No more lines can be pulled up.")
     return
   end
 
-  vim_fn.setcursorcharpos({ curr_lineno + 3, 1 })
+  vim_fn.setcursorcharpos({ curr_lineno + M.config.lang_num + 1, 1 })
   M.cmd.PushUp()
   vim_fn.setpos(".", here)
 end
@@ -160,7 +156,7 @@ M.cmd.PullUpPair = function()
   local here = vim_fn.getpos(".")
   local curr_lineno = here[2]
   local last_lineno = vim_fn.line("$")
-  if last_lineno - curr_lineno < 3 + 1 then
+  if last_lineno - curr_lineno < M.config.lang_num + 1 + 1 then
     M.warning("No more lines can be pulled up.")
     return
   end
@@ -180,12 +176,12 @@ M.cmd.PushDownRightPart = function()
   vim_fn.append(last_lineno, { "", "", "" })
 
   local last_counterpart_lineno = last_lineno
-  while (last_counterpart_lineno - lineno) % 3 ~= 0 do
+  while (last_counterpart_lineno - lineno) % (M.config.lang_num + 1) ~= 0 do
     last_counterpart_lineno = last_counterpart_lineno - 1
   end
 
-  for i = last_counterpart_lineno, lineno + 3, -3 do
-    setline(i + 3, getline(i))
+  for i = last_counterpart_lineno, lineno + M.config.lang_num + 1, -(M.config.lang_num + 1) do
+    setline(i + M.config.lang_num + 1, getline(i))
   end
 
   local current_line = getline(lineno)
@@ -194,8 +190,14 @@ M.cmd.PushDownRightPart = function()
   local before_cursor = current_line:sub(1, cursor_col - 1)
   local after_cursor = current_line:sub(cursor_col)
 
-  setline(lineno, vim_fn.substitute(before_cursor, [[\s\+$]], "", ""))
-  setline(lineno + 3, vim_fn.substitute(after_cursor, [[^\s\+]], "", ""))
+  before_cursor = vim_fn.substitute(before_cursor, [[\s\+$]], "", "")
+  after_cursor =  vim_fn.substitute(after_cursor, [[^\s\+]], "", "")
+
+  before_cursor = _H.removesuffix(before_cursor)
+  after_cursor = _H.removeprefix(after_cursor)
+
+  setline(lineno, before_cursor)
+  setline(lineno + M.config.lang_num + 1, after_cursor)
 
   _H.delete_trailing_empty_lines()
   if M.config.auto_save then
@@ -208,12 +210,46 @@ M.cmd.PushDown = function()
   M.cmd.PushDownRightPart()
 end
 
+_H.normalize_sep = function(s)
+  local sep
+  if s == [['']] or s == [[""]] then
+    sep = ""
+  elseif s == [[\t]] then
+    sep = "\t"
+  else
+    sep = s
+  end
+
+  return sep
+end
+
+M.cmd.SetSeparatorL = function(a)
+  if #a.fargs ~= 2 then
+    M.error("Expected 2 arguments, got " .. #a.fargs)
+    return
+  end
+  local l = a.fargs[1]
+  local sep = _H.normalize_sep(a.fargs[2])
+  M.config.separators[tostring(l)] = sep
+  M.info("Set L" .. l .. " separator as '" .. sep .. "'")
+end
+
+M.cmd.SetLangNum = function(a)
+  local n = tonumber(a.args)
+  M.config.lang_num = n
+
+  while #M.config.separators < n do
+    M.config.separators:insert(" ")
+  end
+  M.info("Set language number as '" .. M.config.lang_num .. "'")
+end
+
 M.cmd.NavigateDown = function()
-  vim_cmd([[normal! 03j]])
+  vim_cmd([[normal! 0]] .. (M.config.lang_num + 1) .. "j")
 end
 
 M.cmd.NavigateUp = function()
-  vim_cmd([[normal! 03k]])
+  vim_cmd([[normal! 0]] .. (M.config.lang_num + 1) .. "k")
 end
 
 ---@param lines1 (string|nil)[]
@@ -244,7 +280,7 @@ end
 ---@param params table
 ---@param is_curbuf_L1 boolean
 ---@return nil
-_H.InterlaceWithLx = function(params, is_curbuf_L1)
+_H.InterlaceWithL = function(params, is_curbuf_L1)
   local filepath = params.args
   local fh, err = io.open(filepath, "r")
   if not fh then
@@ -272,13 +308,13 @@ end
 ---@param params table
 ---@return nil
 M.cmd.InterlaceWithL1 = function(params)
-  _H.InterlaceWithLx(params, false)
+  _H.InterlaceWithL(params, false)
 end
 
 ---@param params table
 ---@return nil
 M.cmd.InterlaceWithL2 = function(params)
-  _H.InterlaceWithLx(params, true)
+  _H.InterlaceWithL(params, true)
 end
 
 M.cmd.Deinterlace = function(a)
@@ -299,7 +335,7 @@ M.cmd.Deinterlace = function(a)
 
   -- get lines in l1 and l2
   local lines_l1, lines_l2 = {}, {}
-  for i = 1, #lines, 3 do
+  for i = 1, #lines, M.config.lang_num + 1 do
     table.insert(lines_l1, lines[i])
     table.insert(lines_l2, lines[i + 1])
   end
@@ -384,7 +420,7 @@ M.cmd.Dump = function(a)
   else
     path = a.args
   end
-  local data = { curpos = vim_fn.getpos("."), matches = vim_fn.getmatches() }
+  local data = { curpos = vim_fn.getpos("."), matches = vim_fn.getmatches(), config = M.config }
   -- the json string will be written to the frist line
   pcall(vim.fn.writefile, { vim.json.encode(data) }, path, "")
 end
@@ -407,6 +443,8 @@ M.cmd.Load = function(a)
 
   vim_fn.setpos(".", ret.curpos)
   vim_fn.setmatches(ret.matches)
+
+  M.config = vim.tbl_deep_extend("force", M.config, ret.config)
 end
 
 ---@return boolean false if there is no matches to show
@@ -511,7 +549,9 @@ end
 --:ItMatchDelete . deletes the most recently added match
 --:ItMatchDelete n delete match whose id is n
 M.cmd.MatchDelete = function(a)
+  a.args = vim.trim(a.args)
   local id = nil
+
   if #a.args == 0 then
     ret = M.cmd.ListMatches()
     if not ret then
@@ -530,11 +570,7 @@ M.cmd.MatchDelete = function(a)
     id = a.args
   end
 
-  ok, msg = pcall(vim_fn.matchdelete, id)
-  if not ok then
-    M.error(msg)
-    M.cmd.MatchDelete(a)
-  end
+  pcall(vim_fn.matchdelete, id)
 end
 
 ---@param shortcut string
@@ -542,6 +578,22 @@ end
 _H.store_orig_mapping = function(shortcut)
   mapping = vim_fn.maparg(shortcut, "n", false, true)
   M._orig_mappings[shortcut] = mapping
+end
+
+_H.removeprefix = function(str, prefix)
+  if str:sub(1, #prefix) == prefix then
+    return str:sub(#prefix + 1)
+  else
+    return str
+  end
+end
+
+_H.removesuffix = function(str, suffix)
+  if str:sub(- #suffix) == suffix then
+    return str:sub(1, - #suffix - 1)
+  else
+    return str
+  end
 end
 
 ---@param opts table
@@ -602,6 +654,8 @@ M.setup = function(opts)
     { nargs = 0 })
   create_command(M.config.cmd_prefix .. "PushUpPair", M.cmd.PushUpPair,
     { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "SetSeparatorL", M.cmd.SetSeparatorL, { nargs = "+" })
+  create_command(M.config.cmd_prefix .. "SetLangNum", M.cmd.SetLangNum, { nargs = 1 })
   create_command(M.config.cmd_prefix .. "SplitChineseSentences", M.cmd.SplitChineseSentences,
     { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "SplitEnglishSentences", M.cmd.SplitEnglishSentences,
