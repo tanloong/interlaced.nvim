@@ -356,18 +356,16 @@ M.cmd.Deinterlace = function(a)
     table.remove(lines, 1)
   end
 
-  -- get lines in l1 and l2
-  local lines_l1, lines_l2 = {}, {}
-  for i = 1, #lines, (M.config.lang_num + 1) do
-    table.insert(lines_l1, lines[i])
-    table.insert(lines_l2, lines[i + 1])
+  local results = {}
+  -- gather lines from each language and append to {results}
+  for offset = 1, M.config.lang_num, 1 do
+    for chunkno = 0, #lines - offset, (M.config.lang_num + 1) do
+      table.insert(results, lines[chunkno + offset])
+    end
+    -- for each language, append an empty string to {results} after gathering
+    table.insert(results, "")
   end
-
-  -- {start}, {end} is inclusive, used like with getline(), which is 1-based,
-  -- thus not (a.line1 - 1)
-  vim_fn.deletebufline(buf, a.line1, a.line2)
-  vim_fn.append(a.line1 - 1, lines_l1)
-  vim_fn.append(a.line1 - 1 + #lines_l1, lines_l2)
+  vim_api.nvim_buf_set_lines(buf, a.line1 - 1, a.line2, true, results)
 end
 
 ---@param regex string
@@ -585,7 +583,7 @@ M.cmd.MatchDelete = function(a)
     if not (n >= 1 and n <= i) then
       return
     end
-    pattern = vim_fn.substitute(choices[n+1], [[^]] .. n .. [[\. ]], "", "")
+    pattern = vim_fn.substitute(choices[n + 1], [[^]] .. n .. [[\. ]], "", "")
     for _, match in ipairs(matches) do
       if match.pattern == pattern then
         vim_fn.matchdelete(match.id)
