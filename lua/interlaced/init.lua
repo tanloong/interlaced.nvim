@@ -136,7 +136,7 @@ M.cmd.PushUpPair = function()
   local here = vim_fn.getpos(".")
   vim_cmd([[normal! {]])
   for _ = 1, 2 do
-    vim_fn.setcursorcharpos({ vim_fn.line(".") + 1, 1 })
+    vim_fn.setcursorcharpos(vim_fn.line(".") + 1, 1)
     M.cmd.PushUp()
   end
   vim_fn.setpos(".", here)
@@ -151,7 +151,7 @@ M.cmd.PullUp = function()
     return
   end
 
-  vim_fn.setcursorcharpos({ curr_lineno + (M.config.lang_num + 1), 1 })
+  vim_fn.setcursorcharpos(curr_lineno + (M.config.lang_num + 1), 1)
   M.cmd.PushUp()
   vim_fn.setpos(".", here)
 end
@@ -167,7 +167,7 @@ M.cmd.PullUpPair = function()
 
   vim_cmd([[normal! }]])
   for _ = 1, 2 do
-    vim_fn.setcursorcharpos({ vim_fn.line(".") + 1, 1 })
+    vim_fn.setcursorcharpos(vim_fn.line(".") + 1, 1)
     M.cmd.PushUp()
   end
   vim_fn.setpos(".", here)
@@ -474,16 +474,86 @@ M.cmd.Load = function(a)
 end
 
 M.cmd.ListMatches = function()
-  local matches = vim.fn.getmatches()
-  for i, m in pairs(matches) do
-    -- so dirty :(
-    vim.cmd("echon " .. "' " .. i .. ".'" ..
-      " | echon ' '" ..
-      " | echohl " .. m.group ..
-      " | echon " .. "'" .. (m.pattern or "") .. "'" ..
-      " | echohl None" ..
-      " | echo ''"
-    )
+  local scrwin = vim_api.nvim_get_current_win()
+  vim.cmd.split()
+  local bufnr = vim_api.nvim_create_buf(true, true)
+  vim_api.nvim_buf_set_name(bufnr, "interlaced://" .. tostring(bufnr))
+  vim_api.nvim_set_current_buf(bufnr)
+  vim.bo[bufnr].bufhidden = "wipe"
+  vim.bo[bufnr].buftype = 'nowrite'
+
+  local matches = vim_fn.getmatches(scrwin)
+  local deleted_matches = {}
+  local sort_methods = {
+    -- color order
+    function(a, b) return a.group < b.group end,
+    -- pattern order
+    function(a, b) return a.pattern < b.pattern end,
+    -- id order
+    function(a, b) return a.id < b.id end,
+  }
+  local sort = 0
+  local function cycle_sort()
+    -- cycle to the next sort method, thus sort + 1
+    sort = (sort % #sort_methods) + 1
+    -- lua table is 1-based, thus +1
+    table.sort(matches, sort_methods[sort])
+    local added_patterns = {}
+    for i, match in ipairs(matches) do
+      table.insert(added_patterns, i .. ". " .. match.pattern)
+      vim_fn.matchadd(match.group, [[\V]] .. vim_fn.escape(match.pattern, [[\]]))
+    end
+
+    -- allow edit temporarily
+    vim.bo[bufnr].modifiable = true
+    vim_api.nvim_buf_set_lines(bufnr, 0, -1, true, added_patterns)
+    vim.bo[bufnr].modifiable = false
+  end
+  cycle_sort()
+
+  local function delete_match()
+    local curr_lineno = vim_fn.line(".")
+    local line = vim_fn.getline(".")
+    local pattern = vim_fn.substitute(line, [[\v^\d+\.\s*]], "", "")
+    -- invalid lines (those with pattern not in matches) will be skipped in this for loop and won't be appended to deleted_matches
+    for _, match in ipairs(matches) do
+      if match.pattern == pattern then
+        vim_fn.matchdelete(match.id, scrwin)
+        -- display and display_lineno is used in restore_match()
+        match.display = line
+        match.display_lineno = curr_lineno
+        table.insert(deleted_matches, match)
+      end
+    end
+
+    -- allow edit temporarily
+    vim.bo[bufnr].modifiable = true
+    -- delete cursorline, be it valid or not
+    vim_fn.deletebufline(bufnr, curr_lineno, curr_lineno)
+    vim.bo[bufnr].modifiable = false
+  end
+
+  local function restore_match()
+    local m = table.remove(deleted_matches)
+    if m == nil then return end
+    vim_fn.matchadd(m.group, m.pattern, m.priority, m.id, { window = scrwin })
+
+    -- allow edit temporarily
+    vim.bo[bufnr].modifiable = true
+    vim_fn.append(m.display_lineno - 1, m.display)
+    vim.bo[bufnr].modifiable = false
+
+    vim_fn.setcursorcharpos(m.display_lineno, 1)
+  end
+
+  for _, entry in ipairs({
+    { "n", "d", delete_match,  "Delete match(es) of the pattern on cursor line" },
+    { "n", "u", restore_match, "Restore the last deleted match" },
+    { "n", "q", vim.cmd.quit,  "Quit" },
+    { "n", "s", cycle_sort,    "cycle through sort methods (1. pattern, 2. color, 3. insertion order)" },
+  }) do
+    local modes, from, to, desc = unpack(entry)
+    vim.keymap.set(modes, from, to, { desc = desc, silent = true, buffer = true, nowait = true, noremap = true })
   end
 end
 
@@ -683,7 +753,7 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "UnmapInterlaced", M.cmd.UnmapInterlaced,
     { nargs = 0 })
 
-  M.info("Setup done.")
+  M.info("restarted")
 end
 
 return M
