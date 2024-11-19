@@ -64,8 +64,8 @@ _H.append_to_3_lines_above = function(lineno)
   local line = getline(lineno)
   local line_target = getline(lineno_target)
 
-  local seppos = tostring(lineno % (M.config.lang_num + 1))
-  local sep = M.config.separators[seppos]
+  local languid = tostring(lineno % (M.config.lang_num + 1))
+  local sep = M.config.language_separator[languid]
   setline(lineno_target, line_target:gsub("%s+$", "") .. sep .. line)
   setline(lineno, "")
 end
@@ -111,18 +111,18 @@ end
 
 M.cmd.PushUp = function()
   local lineno = vim_fn.line(".")
-  if lineno <= M.config.lang_num + 1 then
+  if lineno <= (M.config.lang_num + 1) then
     M.warning("Pushing too early, please move down your cursor.")
     return
   end
 
   _H.append_to_3_lines_above(lineno)
 
-  lineno = lineno + M.config.lang_num + 1
+  lineno = lineno + (M.config.lang_num + 1)
   local last_lineno = vim_fn.line("$")
   while lineno <= last_lineno do
     setline(lineno - (M.config.lang_num + 1), getline(lineno))
-    lineno = lineno + M.config.lang_num + 1
+    lineno = lineno + (M.config.lang_num + 1)
   end
   setline(lineno - (M.config.lang_num + 1), "")
 
@@ -146,12 +146,12 @@ M.cmd.PullUp = function()
   local here = vim_fn.getpos(".")
   local curr_lineno = here[2]
   local last_lineno = vim_fn.line("$")
-  if last_lineno - curr_lineno < M.config.lang_num + 1 then
+  if last_lineno - curr_lineno < (M.config.lang_num + 1) then
     M.warning("No more lines can be pulled up.")
     return
   end
 
-  vim_fn.setcursorcharpos({ curr_lineno + M.config.lang_num + 1, 1 })
+  vim_fn.setcursorcharpos({ curr_lineno + (M.config.lang_num + 1), 1 })
   M.cmd.PushUp()
   vim_fn.setpos(".", here)
 end
@@ -160,7 +160,7 @@ M.cmd.PullUpPair = function()
   local here = vim_fn.getpos(".")
   local curr_lineno = here[2]
   local last_lineno = vim_fn.line("$")
-  if last_lineno - curr_lineno < M.config.lang_num + 1 + 1 then
+  if last_lineno - curr_lineno < (M.config.lang_num + 1) + 1 then
     M.warning("No more lines can be pulled up.")
     return
   end
@@ -184,24 +184,25 @@ M.cmd.PushDownRightPart = function()
     last_counterpart_lineno = last_counterpart_lineno - 1
   end
 
-  for i = last_counterpart_lineno, lineno + M.config.lang_num + 1, -(M.config.lang_num + 1) do
-    setline(i + M.config.lang_num + 1, getline(i))
+  for i = last_counterpart_lineno, lineno + (M.config.lang_num + 1), -(M.config.lang_num + 1) do
+    setline(i + (M.config.lang_num + 1), getline(i))
   end
 
-  local current_line = getline(lineno)
+  local curr_line = getline(lineno)
   local cursor_col = vim_fn.col(".")
 
-  local before_cursor = current_line:sub(1, cursor_col - 1)
-  local after_cursor = current_line:sub(cursor_col)
-
+  local before_cursor = curr_line:sub(1, cursor_col - 1)
+  local after_cursor = curr_line:sub(cursor_col)
   before_cursor = vim_fn.substitute(before_cursor, [[\s\+$]], "", "")
   after_cursor = vim_fn.substitute(after_cursor, [[^\s\+]], "", "")
 
-  before_cursor = _H.removesuffix(before_cursor)
-  after_cursor = _H.removeprefix(after_cursor)
+  local languid = tostring(lineno % (M.config.lang_num + 1))
+  local sep = M.config.language_separator[languid]
+  before_cursor = vim_fn.substitute(before_cursor, vim_fn.escape(sep, [[\]]) .. [[$]], "", "")
+  after_cursor = vim_fn.substitute(after_cursor, [[^]] .. vim_fn.escape(sep, [[\]]), "", "")
 
   setline(lineno, before_cursor)
-  setline(lineno + M.config.lang_num + 1, after_cursor)
+  setline(lineno + (M.config.lang_num + 1), after_cursor)
 
   _H.delete_trailing_empty_lines()
   if M.config.auto_save then
@@ -216,9 +217,10 @@ end
 
 M.cmd.SetSeparator = function(a)
   -- :ItSetSeparator ?
-  if #a.fargs == 1 and a.args == "?" then
-    for l, sep in pairs(M.config.separators) do
-      vim.print("L" .. l .. ": '" .. sep .. "'")
+  -- :ItSetSeparator
+  if #a.fargs == 0 or a.args == "?" then
+    for _, l in ipairs(vim_fn.sort(vim.tbl_keys(M.config.language_separator))) do
+      vim.print("L" .. l .. ": '" .. M.config.language_separator[l] .. "'")
     end
     return
   end
@@ -240,7 +242,7 @@ M.cmd.SetSeparator = function(a)
     sep = "\t"
   end
 
-  M.config.separators[tostring(l)] = sep
+  M.config.language_separator[tostring(l)] = sep
   vim.print("L" .. l .. " separator: '" .. sep .. "'")
 end
 
@@ -249,7 +251,8 @@ end
 
 M.cmd.SetLangNum = function(a)
   -- :ItSetLangNum ?
-  if a.args == "?" then
+  -- :ItSetLangNum
+  if #a.fargs == 0 or a.args == "?" then
     vim.print("Language number: " .. M.config.lang_num)
     return
   end
@@ -258,8 +261,8 @@ M.cmd.SetLangNum = function(a)
   local n = tonumber(a.args)
   M.config.lang_num = n
 
-  while #M.config.separators < n do
-    table.insert(M.config.separators, " ")
+  while #M.config.language_separator < n do
+    table.insert(M.config.language_separator, " ")
   end
   vim.print("Language number: " .. M.config.lang_num)
 end
@@ -355,7 +358,7 @@ M.cmd.Deinterlace = function(a)
 
   -- get lines in l1 and l2
   local lines_l1, lines_l2 = {}, {}
-  for i = 1, #lines, M.config.lang_num + 1 do
+  for i = 1, #lines, (M.config.lang_num + 1) do
     table.insert(lines_l1, lines[i])
     table.insert(lines_l2, lines[i + 1])
   end
@@ -472,27 +475,18 @@ M.cmd.Load = function(a)
   end
 end
 
----@return boolean false if there is no matches to show
 M.cmd.ListMatches = function()
   local matches = vim.fn.getmatches()
-  if #matches == 0 then
-    return false
-  end
-  for _, m in pairs(matches) do
+  for i, m in pairs(matches) do
     -- so dirty :(
-    vim.cmd("echon " .. "'id " .. m.id .. "'" ..
-      " | echon '\t'" ..
-      " | echon " .. "'" .. (m.pattern or "") .. "'" ..
-      " | echon '\t'" ..
+    vim.cmd("echon " .. "' " .. i .. ".'" ..
+      " | echon ' '" ..
       " | echohl " .. m.group ..
-      " | echon " .. "'" .. m.group .. "'" ..
+      " | echon " .. "'" .. (m.pattern or "") .. "'" ..
       " | echohl None" ..
-      " | echon '\t'" ..
-      " | echon " .. "'priority " .. (m.priority or "") .. "'" ..
       " | echo ''"
     )
   end
-  return true
 end
 
 M.cmd.ClearMatches = function()
@@ -519,6 +513,7 @@ M.cmd.MatchAddVisual = function(a)
 end
 
 M.cmd.MatchAdd = function(a)
+  ---If one pattern is added more than one, the old ones will be discarded. (see highlights module highlight function)
   local patterns = nil
   local color = nil
 
@@ -570,32 +565,45 @@ M.cmd.MatchAdd = function(a)
   highlights.highlight(color, patterns)
 end
 
---:ItMatchDelete print matches an choose one
+--:ItMatchDelete print matches and ask user to choose one
 --:ItMatchDelete . deletes the most recently added match
---:ItMatchDelete n delete match whose id is n
 M.cmd.MatchDelete = function(a)
   a.args = vim.trim(a.args)
-  local id = nil
+  local matches = vim_fn.getmatches()
 
-  if #a.args == 0 then
-    ret = M.cmd.ListMatches()
-    if not ret then
+  if #a.fargs == 0 then
+    local choices = { "Select match: " }
+    local defined_patterns = {}
+    local i = 1
+    for _, match in ipairs(matches) do
+      if not vim.list_contains(defined_patterns, match.pattern) then
+        table.insert(choices, i .. ". " .. match.pattern)
+        i = i + 1
+      end
+    end
+    local n = vim_fn.inputlist(choices)
+    if not (n >= 1 and n <= i) then
       return
     end
-    id = vim_fn.input({ prompt = "Choose an id: " })
+    pattern = vim_fn.substitute(choices[n+1], [[^]] .. n .. [[\. ]], "", "")
+    for _, match in ipairs(matches) do
+      if match.pattern == pattern then
+        vim_fn.matchdelete(match.id)
+      end
+    end
   elseif a.args == "." then
     -- use the id of the most recently added match
-    local matches = vim_fn.getmatches()
     if #matches == 0 then
       M.error("No matches to delete")
       return
     end
-    id = matches[#matches].id
-  else
-    id = a.args
-  end
 
-  pcall(vim_fn.matchdelete, id)
+    pcall(vim_fn.matchdelete, matches[#matches].id)
+    return
+  else
+    M.error("Invalid arguments")
+    return
+  end
 end
 
 ---@param shortcut string
@@ -603,22 +611,6 @@ end
 _H.store_orig_mapping = function(shortcut)
   mapping = vim_fn.maparg(shortcut, "n", false, true)
   M._orig_mappings[shortcut] = mapping
-end
-
-_H.removeprefix = function(str, prefix)
-  if str:sub(1, #prefix) == prefix then
-    return str:sub(#prefix + 1)
-  else
-    return str
-  end
-end
-
-_H.removesuffix = function(str, suffix)
-  if str:sub(- #suffix) == suffix then
-    return str:sub(1, - #suffix - 1)
-  else
-    return str
-  end
 end
 
 ---@param opts table
@@ -662,7 +654,12 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "MatchAddVisual", M.cmd.MatchAddVisual,
     { complete = "highlight", nargs = "*", range = true })
   create_command(M.config.cmd_prefix .. "MatchDelete", M.cmd.MatchDelete,
-    { nargs = "*", range = true })
+    {
+      nargs = "?",
+      complete = function(ArgLead, CmDLine, CursorPos)
+        return vim.tbl_map(function(t) return tostring(t.id) end, vim_fn.getmatches())
+      end,
+    })
   create_command(M.config.cmd_prefix .. "NavigateDown", M.cmd.NavigateDown,
     { nargs = 0 })
   create_command(M.config.cmd_prefix .. "NavigateUp", M.cmd.NavigateUp,
@@ -679,8 +676,8 @@ M.setup = function(opts)
     { nargs = 0 })
   create_command(M.config.cmd_prefix .. "PushUpPair", M.cmd.PushUpPair,
     { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "SetSeparator", M.cmd.SetSeparator, { nargs = "+" })
-  create_command(M.config.cmd_prefix .. "SetLangNum", M.cmd.SetLangNum, { nargs = 1 })
+  create_command(M.config.cmd_prefix .. "SetSeparator", M.cmd.SetSeparator, { nargs = "*" })
+  create_command(M.config.cmd_prefix .. "SetLangNum", M.cmd.SetLangNum, { nargs = "?" })
   create_command(M.config.cmd_prefix .. "SplitChineseSentences", M.cmd.SplitChineseSentences,
     { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "SplitEnglishSentences", M.cmd.SplitEnglishSentences,

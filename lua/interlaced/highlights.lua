@@ -535,9 +535,9 @@ end
 ---@param color string|nil
 ---@param patterns table
 M.highlight = function(color, patterns)
-  color = vim.trim(color)
+  local matches = vim_fn.getmatches()
+
   if color == "." then
-    local matches = vim_fn.getmatches()
     color = matches[#matches].group
     -- color is cmd-line args
     -- if the caller accepts cmd-line args, a.args will be "" when not provided by user
@@ -547,7 +547,15 @@ M.highlight = function(color, patterns)
     color = M.randcolor()
     -- else use {color} as is
   end
+
   for _, pattern in ipairs(patterns) do
+    -- delete the previously defined match that has the same pattern
+    for _, match in ipairs(matches) do
+      if match.pattern == pattern then
+        vim_fn.matchdelete(match.id)
+      end
+    end
+
     vim_fn.matchadd(color, pattern)
   end
 end
