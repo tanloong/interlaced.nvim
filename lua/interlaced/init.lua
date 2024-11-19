@@ -498,30 +498,34 @@ M.cmd.ListMatches = function()
     sort = (sort % #sort_methods) + 1
     -- lua table is 1-based, thus +1
     table.sort(matches, sort_methods[sort])
-    local added_patterns = {}
-    for i, match in ipairs(matches) do
-      table.insert(added_patterns, i .. ". " .. match.pattern)
-      vim_fn.matchadd(match.group, [[\V]] .. vim_fn.escape(match.pattern, [[\]]))
+    local display_lines = {}
+    local display_patterns = {}
+    for i, m in ipairs(matches) do
+      if not vim.list_contains(display_patterns, m.pattern) then
+        table.insert(display_lines, i .. ". " .. m.pattern)
+        table.insert(display_patterns, m.pattern)
+        vim_fn.matchadd(m.group, [[\V]] .. vim_fn.escape(m.pattern, [[\]]))
+      end
     end
 
     -- allow edit temporarily
     vim.bo[bufnr].modifiable = true
-    vim_api.nvim_buf_set_lines(bufnr, 0, -1, true, added_patterns)
+    vim_api.nvim_buf_set_lines(bufnr, 0, -1, true, display_lines)
     vim.bo[bufnr].modifiable = false
   end
   cycle_sort()
 
-  local function delete_match()
-    local curr_lineno = vim_fn.line(".")
-    local line = vim_fn.getline(".")
+  local function delete_match(lineno)
+    lineno = lineno or vim_fn.line(".")
+    local line = vim_fn.getline(lineno)
     local pattern = vim_fn.substitute(line, [[\v^\d+\.\s*]], "", "")
     -- invalid lines (those with pattern not in matches) will be skipped in this for loop and won't be appended to deleted_matches
     for _, match in ipairs(matches) do
       if match.pattern == pattern then
-        vim_fn.matchdelete(match.id, scrwin)
+        pcall(vim_fn.matchdelete, match.id, scrwin)
         -- display and display_lineno is used in restore_match()
         match.display = line
-        match.display_lineno = curr_lineno
+        match.display_lineno = lineno
         table.insert(deleted_matches, match)
       end
     end
@@ -529,7 +533,7 @@ M.cmd.ListMatches = function()
     -- allow edit temporarily
     vim.bo[bufnr].modifiable = true
     -- delete cursorline, be it valid or not
-    vim_fn.deletebufline(bufnr, curr_lineno, curr_lineno)
+    vim_fn.deletebufline(bufnr, lineno, lineno)
     vim.bo[bufnr].modifiable = false
   end
 
