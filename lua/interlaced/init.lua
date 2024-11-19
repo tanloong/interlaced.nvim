@@ -11,6 +11,10 @@ local create_command = vim_api.nvim_create_user_command
 
 local config = require("interlaced.config")
 local highlights = require("interlaced.highlights")
+
+-- NOTE: Develop test mode !!
+require("interlaced.test")
+
 local _H = {}
 local M = {
   _H = _H,
@@ -683,6 +687,8 @@ M.setup = function(opts)
     { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "UnmapInterlaced", M.cmd.UnmapInterlaced,
     { nargs = 0 })
+
+  M.info("Setup done.")
 end
 
 return M
