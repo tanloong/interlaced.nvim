@@ -500,9 +500,18 @@ M.cmd.ListMatches = function()
     table.sort(matches, sort_methods[sort])
     local display_lines = {}
     local display_patterns = {}
+    local num_length = tostring(#matches):len()
+    local group_length = vim_fn.max(vim.tbl_map(function(t) return t.group:len() end, matches))
     for i, m in ipairs(matches) do
       if not vim.list_contains(display_patterns, m.pattern) then
-        table.insert(display_lines, i .. ". " .. m.pattern)
+        table.insert(display_lines,
+          string.format(
+            "%" .. num_length .. "d. " ..
+            "%-" .. group_length .. "s " ..
+            "%s",
+            i,
+            m.group,
+            m.pattern))
         table.insert(display_patterns, m.pattern)
         vim_fn.matchadd(m.group, [[\V]] .. vim_fn.escape(m.pattern, [[\]]))
       end
@@ -518,7 +527,7 @@ M.cmd.ListMatches = function()
   local function delete_match(lineno)
     lineno = lineno or vim_fn.line(".")
     local line = vim_fn.getline(lineno)
-    local pattern = vim_fn.substitute(line, [[\v^\d+\.\s*]], "", "")
+    local pattern = vim_fn.substitute(line, [[\v^\d+\.\s*\S+\s*]], "", "")
     -- invalid lines (those with pattern not in matches) will be skipped in this for loop and won't be appended to deleted_matches
     for _, match in ipairs(matches) do
       if match.pattern == pattern then
