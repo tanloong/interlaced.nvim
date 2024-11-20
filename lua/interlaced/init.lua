@@ -21,7 +21,8 @@ local M = {
   _Name = "Interlaced",
   _orig_mappings = {},
   _is_mappings_set = false,
-  _patterns = {},
+  _is_matches_on = true,
+  _matches = {},
   -- A list of regex patterns (named entities, numbers, dates, etc) users want to highlight
   -- :h matchadd()
   -- Matching is case sensitive and magic, unless case sensitivity
@@ -529,6 +530,7 @@ M.cmd.ListMatches = function()
     local line = vim_fn.getline(lineno)
     local pattern = vim_fn.substitute(line, [[\v^\d+\.\s*\S+\s*]], "", "")
     -- invalid lines (those with pattern not in matches) will be skipped in this for loop and won't be appended to deleted_matches
+    local new_matches = {}
     for _, match in ipairs(matches) do
       if match.pattern == pattern then
         pcall(vim_fn.matchdelete, match.id, scrwin)
@@ -536,8 +538,12 @@ M.cmd.ListMatches = function()
         match.display = line
         match.display_lineno = lineno
         table.insert(deleted_matches, match)
+      else
+        table.insert(new_matches, match)
       end
     end
+    -- update {matches}
+    matches = new_matches
 
     -- allow edit temporarily
     vim.bo[bufnr].modifiable = true
@@ -550,6 +556,8 @@ M.cmd.ListMatches = function()
     local m = table.remove(deleted_matches)
     if m == nil then return end
     vim_fn.matchadd(m.group, m.pattern, m.priority, m.id, { window = scrwin })
+    -- update {matches}
+    table.insert(matches, m)
 
     -- allow edit temporarily
     vim.bo[bufnr].modifiable = true
@@ -572,6 +580,17 @@ end
 
 M.cmd.ClearMatches = function()
   vim_fn.clearmatches()
+end
+
+M.cmd.ToggleMatches = function()
+  if M._is_matches_on then
+    M._matches = vim_fn.getmatches()
+    M.cmd.ClearMatches()
+    M._is_matches_on = false
+  else
+    vim_fn.setmatches(M._matches)
+    M._is_matches_on = true
+  end
 end
 
 M.cmd.ListHighlights = function()
@@ -726,6 +745,8 @@ M.setup = function(opts)
     { nargs = 0 })
   create_command(M.config.cmd_prefix .. "ListMatches", M.cmd.ListMatches,
     { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "ToggleMatches", M.cmd.ToggleMatches,
+    { nargs = 0 })
   create_command(M.config.cmd_prefix .. "Load", M.cmd.Load,
     { complete = "file", nargs = "?" })
   create_command(M.config.cmd_prefix .. "MapInterlaced", M.cmd.MapInterlaced,
@@ -766,7 +787,7 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "UnmapInterlaced", M.cmd.UnmapInterlaced,
     { nargs = 0 })
 
-  M.info("restarted")
+  M.info("started")
 end
 
 return M

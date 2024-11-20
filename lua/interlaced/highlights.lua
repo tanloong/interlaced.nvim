@@ -2,10 +2,11 @@
 
 local hl = vim.api.nvim_set_hl
 local vim_fn = vim.fn
--- local ns = vim.api.nvim_create_namespace("interlaced.nvim")
-local ns = 0
 
 local M = {}
+
+M.ns = vim.api.nvim_create_namespace("interlaced.nvim")
+-- local ns = 0
 
 ---@type table
 M.colors = {
@@ -525,7 +526,7 @@ M.colors = {
 
 M.group_prefix = "ItColor"
 for i, v in ipairs(M.colors) do
-  hl(ns, M.group_prefix .. i, v)
+  hl(M.ns, M.group_prefix .. i, v)
 end
 
 M.randcolor = function()
