@@ -10,7 +10,7 @@ local vim_uv = vim.uv or vim.loop
 local create_command = vim_api.nvim_create_user_command
 
 local config = require("interlaced.config")
-local highlights = require("interlaced.highlights")
+local mt = require("interlaced.matches")
 
 -- NOTE: Develop test mode !!
 require("interlaced.test")
@@ -20,9 +20,7 @@ local M = {
   _H = _H,
   _Name = "Interlaced",
   _orig_mappings = {},
-  _is_mappings_set = false,
-  _is_matches_on = true,
-  _matches = {},
+  _is_mappings_on = false,
   -- A list of regex patterns (named entities, numbers, dates, etc) users want to highlight
   -- :h matchadd()
   -- Matching is case sensitive and magic, unless case sensitivity
@@ -81,7 +79,7 @@ _H.delete_trailing_empty_lines = function()
 end
 
 M.cmd.MapInterlaced = function()
-  if M._is_mappings_set then
+  if M._is_mappings_on then
     M.warning("Keybindings already on, nothing to do")
     return
   end
@@ -90,11 +88,11 @@ M.cmd.MapInterlaced = function()
     keyset("n", shortcut, M.cmd[func], { noremap = true, buffer = true, nowait = true })
   end
   M.info("Keybindings on")
-  M._is_mappings_set = true
+  M._is_mappings_on = true
 end
 
 M.cmd.UnmapInterlaced = function()
-  if not M._is_mappings_set then
+  if not M._is_mappings_on then
     M.warning("Keybindings already off, nothing to do")
     return
   end
@@ -107,7 +105,7 @@ M.cmd.UnmapInterlaced = function()
     end
   end
   M.info("Keybindings off")
-  M._is_mappings_set = false
+  M._is_mappings_on = false
 end
 
 M.cmd.PushUp = function()
@@ -324,7 +322,7 @@ _H.InterlaceWithL = function(params, is_curbuf_L1)
   local interlaced_path = time .. ".interlaced.txt"
   vim_fn.writefile(lines, interlaced_path)
   vim_cmd("edit " .. interlaced_path)
-  if not M._is_mappings_set then
+  if not M._is_mappings_on then
     M.cmd.MapInterlaced()
   end
 end
@@ -444,7 +442,7 @@ M.cmd.Dump = function(a)
   end
   local data = { curpos = vim_fn.getpos("."), matches = vim_fn.getmatches(), config = M.config }
   -- the json string will be written to the frist line
-  pcall(vim.fn.writefile, { vim.json.encode(data) }, path, "")
+  pcall(vim_fn.writefile, { vim.json.encode(data) }, path, "")
 end
 
 M.cmd.Load = function(a)
@@ -474,238 +472,6 @@ M.cmd.Load = function(a)
   end
 end
 
-M.cmd.ListMatches = function()
-  local scrwin = vim_api.nvim_get_current_win()
-  vim.cmd.split()
-  local bufnr = vim_api.nvim_create_buf(true, true)
-  vim_api.nvim_buf_set_name(bufnr, "interlaced://" .. tostring(bufnr))
-  vim_api.nvim_set_current_buf(bufnr)
-  vim.bo[bufnr].bufhidden = "wipe"
-  vim.bo[bufnr].buftype = 'nowrite'
-
-  local matches = vim_fn.getmatches(scrwin)
-  local deleted_matches = {}
-  local sort_methods = {
-    -- color order
-    function(a, b) return a.group < b.group end,
-    -- pattern order
-    function(a, b) return a.pattern < b.pattern end,
-    -- id order
-    function(a, b) return a.id < b.id end,
-  }
-  local sort = 0
-  local function cycle_sort()
-    -- cycle to the next sort method, thus sort + 1
-    sort = (sort % #sort_methods) + 1
-    -- lua table is 1-based, thus +1
-    table.sort(matches, sort_methods[sort])
-    local display_lines = {}
-    local display_patterns = {}
-    local num_length = tostring(#matches):len()
-    local group_length = vim_fn.max(vim.tbl_map(function(t) return t.group:len() end, matches))
-    for i, m in ipairs(matches) do
-      if not vim.list_contains(display_patterns, m.pattern) then
-        table.insert(display_lines,
-          string.format(
-            "%" .. num_length .. "d. " ..
-            "%-" .. group_length .. "s " ..
-            "%s",
-            i,
-            m.group,
-            m.pattern))
-        table.insert(display_patterns, m.pattern)
-        vim_fn.matchadd(m.group, [[\V]] .. vim_fn.escape(m.pattern, [[\]]))
-      end
-    end
-
-    -- allow edit temporarily
-    vim.bo[bufnr].modifiable = true
-    vim_api.nvim_buf_set_lines(bufnr, 0, -1, true, display_lines)
-    vim.bo[bufnr].modifiable = false
-  end
-  cycle_sort()
-
-  local function delete_match(lineno)
-    lineno = lineno or vim_fn.line(".")
-    local line = vim_fn.getline(lineno)
-    local pattern = vim_fn.substitute(line, [[\v^\d+\.\s*\S+\s*]], "", "")
-    -- invalid lines (those with pattern not in matches) will be skipped in this for loop and won't be appended to deleted_matches
-    local new_matches = {}
-    for _, match in ipairs(matches) do
-      if match.pattern == pattern then
-        pcall(vim_fn.matchdelete, match.id, scrwin)
-        -- display and display_lineno is used in restore_match()
-        match.display = line
-        match.display_lineno = lineno
-        table.insert(deleted_matches, match)
-      else
-        table.insert(new_matches, match)
-      end
-    end
-    -- update {matches}
-    matches = new_matches
-
-    -- allow edit temporarily
-    vim.bo[bufnr].modifiable = true
-    -- delete cursorline, be it valid or not
-    vim_fn.deletebufline(bufnr, lineno, lineno)
-    vim.bo[bufnr].modifiable = false
-  end
-
-  local function restore_match()
-    local m = table.remove(deleted_matches)
-    if m == nil then return end
-    vim_fn.matchadd(m.group, m.pattern, m.priority, m.id, { window = scrwin })
-    -- update {matches}
-    table.insert(matches, m)
-
-    -- allow edit temporarily
-    vim.bo[bufnr].modifiable = true
-    vim_fn.append(m.display_lineno - 1, m.display)
-    vim.bo[bufnr].modifiable = false
-
-    vim_fn.setcursorcharpos(m.display_lineno, 1)
-  end
-
-  for _, entry in ipairs({
-    { "n", "d", delete_match,  "Delete match(es) of the pattern on cursor line" },
-    { "n", "u", restore_match, "Restore the last deleted match" },
-    { "n", "q", vim.cmd.quit,  "Quit" },
-    { "n", "s", cycle_sort,    "cycle through sort methods (1. pattern, 2. color, 3. insertion order)" },
-  }) do
-    local modes, from, to, desc = unpack(entry)
-    vim.keymap.set(modes, from, to, { desc = desc, silent = true, buffer = true, nowait = true, noremap = true })
-  end
-end
-
-M.cmd.ClearMatches = function()
-  vim_fn.clearmatches()
-end
-
-M.cmd.ToggleMatches = function()
-  if M._is_matches_on then
-    M._matches = vim_fn.getmatches()
-    M.cmd.ClearMatches()
-    M._is_matches_on = false
-  else
-    vim_fn.setmatches(M._matches)
-    M._is_matches_on = true
-  end
-end
-
-M.cmd.ListHighlights = function()
-  vim.cmd([[filter /\v^]] .. highlights.group_prefix .. "/ highlight")
-end
-
-M.cmd.MatchAddVisual = function(a)
-  if #a.fargs > 1 then
-    M.error("At most 1 argument is expected but got " .. #a.fargs)
-    return
-  end
-
-  local patterns = vim_fn.getregion(vim_fn.getpos("'<"), vim_fn.getpos("'>"), { type = "v" })
-  for i, v in ipairs(patterns) do
-    patterns[i] = [[\V]] .. v
-  end
-
-  local color = a.args
-  highlights.highlight(color, patterns)
-end
-
-M.cmd.MatchAdd = function(a)
-  ---If one pattern is added more than one, the old ones will be discarded. (see highlights module highlight function)
-  local patterns = nil
-  local color = nil
-
-  -- handle range
-  -- :i,jItMatchAdd
-  -- :.ItMatchAdd
-  if a.range > 0 then
-    -- getline() returns a list if {end} is provided
-    ---@type table
-    patterns = vim_fn.getline(a.line1, a.line2)
-    for i, v in ipairs(patterns) do
-      patterns[i] = [[\V]] .. v
-    end
-  end
-
-  -- handle color and pattern(s)
-  if #a.fargs > 1 then
-    -- :ItMatchAdd {group} {pattern}
-    -- :ItMatchAdd {group} {pattern1} {pattern2} ...
-    color = table.remove(a.fargs, 1)
-    if patterns == nil then
-      patterns = a.fargs
-    else
-      -- :{range}ItMatchAdd group pattern
-      -- :{range}ItMatchAdd group pattern1 pattern2 ...
-      for pat in a.fargs do
-        patterns:insert(pat)
-      end
-    end
-  else
-    -- :ItMatchAdd {group} (a.fargs == 1)
-    -- :ItMatchAdd (a.fargs == 1)
-    -- :{range}ItMatchAdd (a.fargs == 1)
-    color = a.args
-  end
-
-  -- :ItMatchAdd [group]
-  if patterns == nil then
-    -- with {list} set as true, expand() will return list instead of string
-    ---@type table
-    patterns = vim_fn.expand("<cword>", false, true)
-    -- search matches that forms whole words
-    for i, v in ipairs(patterns) do
-      patterns[i] = [[\<]] .. v .. [[\>]]
-    end
-  end
-
-  -- patterns is list for all above occasions
-  highlights.highlight(color, patterns)
-end
-
---:ItMatchDelete print matches and ask user to choose one
---:ItMatchDelete . deletes the most recently added match
-M.cmd.MatchDelete = function(a)
-  a.args = vim.trim(a.args)
-  local matches = vim_fn.getmatches()
-
-  if #a.fargs == 0 then
-    local choices = { "Select match: " }
-    local defined_patterns = {}
-    local i = 1
-    for _, match in ipairs(matches) do
-      if not vim.list_contains(defined_patterns, match.pattern) then
-        table.insert(choices, i .. ". " .. match.pattern)
-        i = i + 1
-      end
-    end
-    local n = vim_fn.inputlist(choices)
-    if not (n >= 1 and n <= i) then
-      return
-    end
-    pattern = vim_fn.substitute(choices[n + 1], [[^]] .. n .. [[\. ]], "", "")
-    for _, match in ipairs(matches) do
-      if match.pattern == pattern then
-        vim_fn.matchdelete(match.id)
-      end
-    end
-  elseif a.args == "." then
-    -- use the id of the most recently added match
-    if #matches == 0 then
-      M.error("No matches to delete")
-      return
-    end
-
-    pcall(vim_fn.matchdelete, matches[#matches].id)
-    return
-  else
-    M.error("Invalid arguments")
-    return
-  end
-end
-
 ---@param shortcut string
 ---@return nil
 _H.store_orig_mapping = function(shortcut)
@@ -729,63 +495,38 @@ M.setup = function(opts)
 
   -- create commands
   -- :h lua-guide-commands-create
-  create_command(M.config.cmd_prefix .. "ClearMatches", M.cmd.ClearMatches,
-    { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "Deinterlace", M.cmd.Deinterlace,
-    { nargs = 0, range = "%" })
-  create_command(M.config.cmd_prefix .. "Dump", M.cmd.Dump,
-    { complete = "file", nargs = "?" })
-  create_command(M.config.cmd_prefix .. "Interlace", M.cmd.Interlace,
-    { nargs = "*", range = "%" })
-  create_command(M.config.cmd_prefix .. "InterlaceWithL1", M.cmd.InterlaceWithL1,
-    { complete = "file", nargs = 1 })
-  create_command(M.config.cmd_prefix .. "InterlaceWithL2", M.cmd.InterlaceWithL2,
-    { complete = "file", nargs = 1 })
-  create_command(M.config.cmd_prefix .. "ListHighlights", M.cmd.ListHighlights,
-    { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "ListMatches", M.cmd.ListMatches,
-    { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "ToggleMatches", M.cmd.ToggleMatches,
-    { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "Load", M.cmd.Load,
-    { complete = "file", nargs = "?" })
-  create_command(M.config.cmd_prefix .. "MapInterlaced", M.cmd.MapInterlaced,
-    { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "MatchAdd", M.cmd.MatchAdd,
-    { complete = "highlight", nargs = "*", range = true })
-  create_command(M.config.cmd_prefix .. "MatchAddVisual", M.cmd.MatchAddVisual,
-    { complete = "highlight", nargs = "*", range = true })
-  create_command(M.config.cmd_prefix .. "MatchDelete", M.cmd.MatchDelete,
-    {
-      nargs = "?",
-      complete = function(ArgLead, CmDLine, CursorPos)
-        return vim.tbl_map(function(t) return tostring(t.id) end, vim_fn.getmatches())
-      end,
-    })
-  create_command(M.config.cmd_prefix .. "NavigateDown", M.cmd.NavigateDown,
-    { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "NavigateUp", M.cmd.NavigateUp,
-    { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "PullUp", M.cmd.PullUp,
-    { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "PullUpPair", M.cmd.PullUpPair,
-    { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "PushDown", M.cmd.PushDown,
-    { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "PushDownRightPart", M.cmd.PushDownRightPart,
-    { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "PushUp", M.cmd.PushUp,
-    { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "PushUpPair", M.cmd.PushUpPair,
-    { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "SetSeparator", M.cmd.SetSeparator, { nargs = "*" })
+  create_command(M.config.cmd_prefix .. "Deinterlace", M.cmd.Deinterlace, { nargs = 0, range = "%" })
+  create_command(M.config.cmd_prefix .. "Dump", M.cmd.Dump, { complete = "file", nargs = "?" })
+  create_command(M.config.cmd_prefix .. "Interlace", M.cmd.Interlace, { nargs = "*", range = "%" })
+  create_command(M.config.cmd_prefix .. "InterlaceWithL1", M.cmd.InterlaceWithL1, { complete = "file", nargs = 1 })
+  create_command(M.config.cmd_prefix .. "InterlaceWithL2", M.cmd.InterlaceWithL2, { complete = "file", nargs = 1 })
+  create_command(M.config.cmd_prefix .. "Load", M.cmd.Load, { complete = "file", nargs = "?" })
+  create_command(M.config.cmd_prefix .. "MapInterlaced", M.cmd.MapInterlaced, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "NavigateDown", M.cmd.NavigateDown, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "NavigateUp", M.cmd.NavigateUp, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "PullUp", M.cmd.PullUp, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "PullUpPair", M.cmd.PullUpPair, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "PushDown", M.cmd.PushDown, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "PushDownRightPart", M.cmd.PushDownRightPart, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "PushUp", M.cmd.PushUp, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "PushUpPair", M.cmd.PushUpPair, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "SetLangNum", M.cmd.SetLangNum, { nargs = "?" })
-  create_command(M.config.cmd_prefix .. "SplitChineseSentences", M.cmd.SplitChineseSentences,
-    { nargs = 0, range = "%" })
-  create_command(M.config.cmd_prefix .. "SplitEnglishSentences", M.cmd.SplitEnglishSentences,
-    { nargs = 0, range = "%" })
-  create_command(M.config.cmd_prefix .. "UnmapInterlaced", M.cmd.UnmapInterlaced,
-    { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "SetSeparator", M.cmd.SetSeparator, { nargs = "*" })
+  create_command(M.config.cmd_prefix .. "SplitChineseSentences", M.cmd.SplitChineseSentences, { nargs = 0, range = "%" })
+  create_command(M.config.cmd_prefix .. "SplitEnglishSentences", M.cmd.SplitEnglishSentences, { nargs = 0, range = "%" })
+  create_command(M.config.cmd_prefix .. "UnmapInterlaced", M.cmd.UnmapInterlaced, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "ClearMatches", mt.cmd.ClearMatches, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "ListHighlights", mt.cmd.ListHighlights, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "ListMatches", mt.cmd.ListMatches, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "MatchAdd", mt.cmd.MatchAdd,
+    { complete = "highlight", nargs = "*", range = true })
+  create_command(M.config.cmd_prefix .. "MatchAddVisual", mt.cmd.MatchAddVisual,
+    { complete = "highlight", nargs = "*", range = true })
+  create_command(M.config.cmd_prefix .. "MatchDelete", mt.cmd.MatchDelete,
+    { nargs = "?",
+      complete = function(ArgLead, CmDLine, CursorPos) return vim.tbl_map(function(t) return tostring(t.id) end,
+          vim_fn.getmatches()) end, })
+  create_command(M.config.cmd_prefix .. "ToggleMatches", mt.cmd.ToggleMatches, { nargs = 0 })
 
   M.info("started")
 end

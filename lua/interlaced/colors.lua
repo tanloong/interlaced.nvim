@@ -1,15 +1,6 @@
 #!/usr/bin/env lua
 
-local hl = vim.api.nvim_set_hl
-local vim_fn = vim.fn
-
-local M = {}
-
-M.ns = vim.api.nvim_create_namespace("interlaced.nvim")
--- local ns = 0
-
----@type table
-M.colors = {
+return {
   -- foreground color black
   { ctermbg = 1,   ctermfg = 0,   bg = "#000000", fg = "#000000" },
   { ctermbg = 2,   ctermfg = 0,   bg = "#800000", fg = "#000000" },
@@ -523,42 +514,3 @@ M.colors = {
   { ctermbg = 254, ctermfg = 255, bg = "#dadada", fg = "#e4e4e4" },
   { ctermbg = 255, ctermfg = 255, bg = "#e4e4e4", fg = "#e4e4e4" },
 }
-
-M.group_prefix = "ItColor"
-for i, v in ipairs(M.colors) do
-  hl(M.ns, M.group_prefix .. i, v)
-end
-
-M.randcolor = function()
-  return M.group_prefix .. (math.fmod(vim_fn.rand(), #M.colors) + 1)
-end
-
----@param color string|nil
----@param patterns table
-M.highlight = function(color, patterns)
-  local matches = vim_fn.getmatches()
-
-  if color == "." then
-    color = matches[#matches].group
-    -- color is cmd-line args
-    -- if the caller accepts cmd-line args, a.args will be "" when not provided by user
-    -- if the caller is not defined to accept cmd-line args, a.args will be nil
-    -- cannot use `not color` because lua consider only nil and false as false, "" and 0 would be true
-  elseif color == "_" or color == nil or color:len() == 0 then
-    color = M.randcolor()
-    -- else use {color} as is
-  end
-
-  for _, pattern in ipairs(patterns) do
-    -- delete the previously defined match that has the same pattern
-    for _, match in ipairs(matches) do
-      if match.pattern == pattern then
-        vim_fn.matchdelete(match.id)
-      end
-    end
-
-    vim_fn.matchadd(color, pattern)
-  end
-end
-
-return M
