@@ -522,10 +522,6 @@ M.setup = function(opts)
     { complete = "highlight", nargs = "*", range = true })
   create_command(M.config.cmd_prefix .. "MatchAddVisual", mt.cmd.MatchAddVisual,
     { complete = "highlight", nargs = "*", range = true })
-  create_command(M.config.cmd_prefix .. "MatchDelete", mt.cmd.MatchDelete,
-    { nargs = "?",
-      complete = function(ArgLead, CmDLine, CursorPos) return vim.tbl_map(function(t) return tostring(t.id) end,
-          vim_fn.getmatches()) end, })
   create_command(M.config.cmd_prefix .. "ToggleMatches", mt.cmd.ToggleMatches, { nargs = 0 })
 
   M.info("started")

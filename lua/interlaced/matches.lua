@@ -259,45 +259,4 @@ M.cmd.MatchAdd = function(a)
   _H.highlight(color, patterns)
 end
 
---:ItMatchDelete print matches and ask user to choose one
---:ItMatchDelete . deletes the most recently added match
-M.cmd.MatchDelete = function(a)
-  a.args = vim.trim(a.args)
-  local matches = vim_fn.getmatches()
-
-  if #a.fargs == 0 then
-    local choices = { "Select match: " }
-    local defined_patterns = {}
-    local i = 1
-    for _, match in ipairs(matches) do
-      if not vim.list_contains(defined_patterns, match.pattern) then
-        table.insert(choices, i .. ". " .. match.pattern)
-        i = i + 1
-      end
-    end
-    local n = vim_fn.inputlist(choices)
-    if not (n >= 1 and n <= i) then
-      return
-    end
-    pattern = vim_fn.substitute(choices[n + 1], [[^]] .. n .. [[\. ]], "", "")
-    for _, match in ipairs(matches) do
-      if match.pattern == pattern then
-        vim_fn.matchdelete(match.id)
-      end
-    end
-  elseif a.args == "." then
-    -- use the id of the most recently added match
-    if #matches == 0 then
-      M.error("No matches to delete")
-      return
-    end
-
-    pcall(vim_fn.matchdelete, matches[#matches].id)
-    return
-  else
-    M.error("Invalid arguments")
-    return
-  end
-end
-
 return M
