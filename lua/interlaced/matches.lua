@@ -60,14 +60,12 @@ _H.matchadd = function(color, patterns)
 
     _H.set_enable_matches(true)
     -- 1. add to matches
-    vim_fn.matchadd(color, pattern)
+    local id = vim_fn.matchadd(color, pattern)
 
     -- 2. add to {M._matches}
     -- {M._matches} might be used for setmatches(), which complains about
     --   missing required keys, so should include all 4 of them.
-    -- The {priority} argument is 10 by default. If the {id} argument is not
-    --   specified or -1, matchadd() automatically chooses a free ID.
-    table.insert(M._matches, { group = color, pattern = pattern, priority = 10, id = -1 })
+    table.insert(M._matches, { group = color, pattern = pattern, priority = 10, id = id })
     M.last_color = color
   end
 end
