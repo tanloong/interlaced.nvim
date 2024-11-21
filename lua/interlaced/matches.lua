@@ -83,6 +83,7 @@ _H.set_enable_matches = function(enable)
 end
 
 _H.escape_text = function(s)
+  -- Reference: https://github.com/inkarkat/vim-mark/blob/fa0898fe5fa8e13aee991534d6cb44f421f07c2c/autoload/mark.vim#L57
   return vim_fn.substitute(vim_fn.escape(s, [[\^$.*[~]]), [[\n]], [[\\n]], "g")
 end
 

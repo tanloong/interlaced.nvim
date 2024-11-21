@@ -372,8 +372,8 @@ M.cmd.InterlaceWithL2 = function(params)
   _H.InterlaceWithL(params, true)
 end
 
-M.cmd.Deinterlace = function(a)
-  -- :[range]ItDeinterlace, works on the whole buffer if range is not provided
+M.cmd.DeInterlace = function(a)
+  -- :[range]ItDeInterlace, works on the whole buffer if range is not provided
   -- upper- and lower-most empty lines are ignored
   -- requires the range is paired, [(, L2_1), (L1_2, L2_2), (L1_3, L2_3), ...] will make the buffer chaotic
 
@@ -397,7 +397,9 @@ M.cmd.Deinterlace = function(a)
   -- gather lines from each language and append to {results}
   for offset = 1, M.config.lang_num do
     for chunkno = 0, #lines - offset, (M.config.lang_num + 1) do
-      table.insert(results, lines[chunkno + offset])
+      if lines[chunkno + offset] ~= "" then
+        table.insert(results, lines[chunkno + offset])
+      end
     end
     -- for each language, append an empty string to {results} after gathering
     table.insert(results, "")
@@ -562,7 +564,7 @@ M.setup = function(opts)
 
   -- create commands
   -- :h lua-guide-commands-create
-  create_command(M.config.cmd_prefix .. "Deinterlace", M.cmd.Deinterlace, { nargs = 0, range = "%" })
+  create_command(M.config.cmd_prefix .. "DeInterlace", M.cmd.DeInterlace, { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "Dump", M.cmd.Dump, { complete = "file", nargs = "?" })
   create_command(M.config.cmd_prefix .. "Interlace", M.cmd.Interlace, { nargs = "*", range = "%" })
   create_command(M.config.cmd_prefix .. "InterlaceWithL1", M.cmd.InterlaceWithL1, { complete = "file", nargs = 1 })
