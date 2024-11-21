@@ -504,6 +504,7 @@ M.cmd.Load = function(a)
   end
   if ret.matches ~= nil then
     vim_fn.setmatches(ret.matches)
+    mt._matches = ret.matches
   end
   if ret.config ~= nil then
     M.config = vim.tbl_deep_extend("force", M.config, ret.config)
