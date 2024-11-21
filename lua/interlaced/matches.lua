@@ -82,6 +82,11 @@ _H.set_enable_matches = function(enable)
   end
 end
 
+_H.escape_text = function(s)
+  return vim_fn.substitute(vim_fn.escape(s, [[\^$.*[~]]), [[\n]], [[\\n]], "g")
+end
+
+
 M.cmd.ToggleMatches = function()
   _H.set_enable_matches(not M.is_hl_matches)
 end
@@ -134,7 +139,7 @@ M.cmd.ListMatches = function()
             m.group,
             m.pattern))
         table.insert(display_patterns, m.pattern)
-        vim_fn.matchadd(m.group, [[\V]] .. vim_fn.escape(m.pattern, [[\]]))
+        vim_fn.matchadd(m.group, _H.escape_text(m.pattern))
       end
     end
 
@@ -201,13 +206,10 @@ M.cmd.MatchAddVisual = function(a)
     return
   end
 
-  local patterns = vim_fn.getregion(vim_fn.getpos("'<"), vim_fn.getpos("'>"), { type = "v" })
-  for i, v in ipairs(patterns) do
-    patterns[i] = [[\V]] .. v
-  end
+  local pattern = { table.concat(vim_fn.getregion(vim_fn.getpos("'<"), vim_fn.getpos("'>"), { type = "v" }), [[\n]]) }
 
   local color = a.args
-  _H.matchadd(color, patterns)
+  _H.matchadd(color, pattern)
 end
 
 M.cmd.MatchAdd = function(a)
@@ -221,10 +223,7 @@ M.cmd.MatchAdd = function(a)
   if a.range > 0 then
     -- getline() returns a list if {end} is provided
     ---@type table
-    patterns = vim_fn.getline(a.line1, a.line2)
-    for i, v in ipairs(patterns) do
-      patterns[i] = [[\V]] .. v
-    end
+    patterns = vim.tbl_map(_H.escape_text, vim_fn.getline(a.line1, a.line2))
   end
 
   -- handle color and pattern(s)
