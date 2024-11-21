@@ -7,11 +7,16 @@ local vim_api = vim.api
 local _H = {}
 local M = {
   _H = _H,
-  _is_matches_on = true,
+  ---@type boolean
+  is_hl_matches = true,
+  ---@type { id: integer, group: string, pattern: string, priority: integer}[]
   _matches = {},
+  ---@type string?
+  last_color = nil,
   colors = require("interlaced.colors"),
   group_prefix = "ItColor",
-  ns = vim.api.nvim_create_namespace("interlaced.nvim"),
+  -- ns = vim.api.nvim_create_namespace("interlaced.nvim"),
+  ns = 0,
   cmd = {},
 }
 
@@ -26,9 +31,9 @@ end
 
 ---@param color string|nil
 ---@param patterns table
-_H.highlight = function(color, patterns)
+_H.matchadd = function(color, patterns)
   if color == "." then
-    color = M._matches[#M._matches].group
+    color = M.last_color or _H.randcolor()
     -- color is cmd-line args
     -- if the caller accepts cmd-line args, a.args will be "" when not provided by user
     -- if the caller is not defined to accept cmd-line args, a.args will be nil
@@ -46,36 +51,41 @@ _H.highlight = function(color, patterns)
     --   elements that have not yet been checked when an even element is removed
     for i, m in vim.iter(M._matches):rev():enumerate() do
       if m.pattern == pattern then
-        -- delete from matches
+        -- 1. delete from matches
         vim_fn.matchdelete(m.id)
-        -- delete from {M._matches}
+        -- 2. delete from {M._matches}
         table.remove(M._matches, i)
       end
     end
 
-    -- add to matches
-    if M._is_matches_on then
-      vim_fn.matchadd(color, pattern)
-    end
+    _H.set_enable_matches(true)
+    -- 1. add to matches
+    vim_fn.matchadd(color, pattern)
 
-    -- add to {M._matches}
+    -- 2. add to {M._matches}
     -- {M._matches} might be used for setmatches(), which complains about
     --   missing required keys, so should include all 4 of them.
     -- The {priority} argument is 10 by default. If the {id} argument is not
     --   specified or -1, matchadd() automatically chooses a free ID.
     table.insert(M._matches, { group = color, pattern = pattern, priority = 10, id = -1 })
+    M.last_color = color
+  end
+end
+
+---@param enable boolean
+_H.set_enable_matches = function(enable)
+  if enable then
+    vim_fn.setmatches(M._matches)
+    M.is_hl_matches = true
+  else
+    M._matches = vim_fn.getmatches()
+    M.cmd.ClearMatches()
+    M.is_hl_matches = false
   end
 end
 
 M.cmd.ToggleMatches = function()
-  if M._is_matches_on then
-    M._matches = vim_fn.getmatches()
-    M.cmd.ClearMatches()
-    M._is_matches_on = false
-  else
-    vim_fn.setmatches(M._matches)
-    M._is_matches_on = true
-  end
+  _H.set_enable_matches(not M.is_hl_matches)
 end
 
 M.cmd.ClearMatches = function()
@@ -96,7 +106,6 @@ M.cmd.ListMatches = function()
   vim.bo[bufnr].bufhidden = "wipe"
   vim.bo[bufnr].buftype = 'nowrite'
 
-  local matches = vim_fn.getmatches(scrwin)
   local deleted_matches = {}
   local sort_methods = {
     -- color order
@@ -111,12 +120,12 @@ M.cmd.ListMatches = function()
     -- cycle to the next sort method, thus sort + 1
     sort = (sort % #sort_methods) + 1
     -- lua table is 1-based, thus +1
-    table.sort(matches, sort_methods[sort])
+    table.sort(M._matches, sort_methods[sort])
     local display_lines = {}
     local display_patterns = {}
-    local num_length = tostring(#matches):len()
-    local group_length = vim_fn.max(vim.tbl_map(function(t) return t.group:len() end, matches))
-    for i, m in ipairs(matches) do
+    local num_length = tostring(#M._matches):len()
+    local group_length = vim_fn.max(vim.tbl_map(function(t) return t.group:len() end, M._matches))
+    for i, m in ipairs(M._matches) do
       if not vim.list_contains(display_patterns, m.pattern) then
         table.insert(display_lines,
           string.format(
@@ -143,21 +152,18 @@ M.cmd.ListMatches = function()
     local line = vim_fn.getline(lineno)
     local pattern = vim_fn.substitute(line, [[\v^\d+\.\s*\S+\s*]], "", "")
     -- invalid lines (those with pattern not in matches) will be skipped in this for loop and won't be appended to deleted_matches
-    local new_matches = {}
-    for _, match in ipairs(matches) do
-      if match.pattern == pattern then
-        pcall(vim_fn.matchdelete, match.id, scrwin)
+    for i, m in vim.iter(M._matches):rev():enumerate() do
+      if m.pattern == pattern then
+        -- 1. delete from matches
+        pcall(vim_fn.matchdelete, m.id, scrwin)
         -- display and display_lineno is used in restore_match()
-        match.display = line
-        match.display_lineno = lineno
-        table.insert(deleted_matches, match)
-      else
-        table.insert(new_matches, match)
+        m.display = line
+        m.display_lineno = lineno
+        table.insert(deleted_matches, m)
+        -- 2. delete from {M._matches}
+        table.remove(M._matches, i)
       end
     end
-    -- update {matches}
-    matches = new_matches
-
     -- allow edit temporarily
     vim.bo[bufnr].modifiable = true
     -- delete cursorline, be it valid or not
@@ -170,7 +176,7 @@ M.cmd.ListMatches = function()
     if m == nil then return end
     vim_fn.matchadd(m.group, m.pattern, m.priority, m.id, { window = scrwin })
     -- update {matches}
-    table.insert(matches, m)
+    table.insert(M._matches, m)
 
     -- allow edit temporarily
     vim.bo[bufnr].modifiable = true
@@ -203,7 +209,7 @@ M.cmd.MatchAddVisual = function(a)
   end
 
   local color = a.args
-  _H.highlight(color, patterns)
+  _H.matchadd(color, patterns)
 end
 
 M.cmd.MatchAdd = function(a)
@@ -256,7 +262,7 @@ M.cmd.MatchAdd = function(a)
   end
 
   -- patterns is list for all above occasions
-  _H.highlight(color, patterns)
+  _H.matchadd(color, patterns)
 end
 
 return M

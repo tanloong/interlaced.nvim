@@ -214,6 +214,33 @@ M.cmd.PushDown = function()
   M.cmd.PushDownRightPart()
 end
 
+M.cmd.SetWeight = function(a)
+  -- :ItSetWeight ?
+  -- :ItSetWeight
+  if #a.fargs == 0 or a.args == "?" then
+    for _, l in ipairs(vim_fn.sort(vim.tbl_keys(M.config.language_weight))) do
+      vim.print("L" .. l .. ": " .. M.config.language_weight[l])
+    end
+    return
+  end
+
+  -- :ItSetWeight {int} {number}
+  if #a.fargs ~= 2 then
+    M.error("Expected 2 arguments, got " .. #a.fargs)
+    return
+  end
+
+  local l = a.fargs[1]
+  local weight = tonumber(a.fargs[2])
+  if weight == nil then
+    M.error(a.fargs[2] .. " does not look like a number")
+    return
+  end
+
+  M.config.language_weight[tostring(l)] = weight
+  vim.print("L" .. l .. " weight: " .. weight .. "")
+end
+
 M.cmd.SetSeparator = function(a)
   -- :ItSetSeparator ?
   -- :ItSetSeparator
@@ -260,9 +287,15 @@ M.cmd.SetLangNum = function(a)
   local n = tonumber(a.args)
   M.config.lang_num = n
 
+  -- default separator when language number grows
   while #M.config.language_separator < n do
     table.insert(M.config.language_separator, " ")
   end
+  -- default weight when language number grows
+  while #M.config.language_separator < n do
+    table.insert(M.config.language_weight, 1)
+  end
+
   vim.print("Language number: " .. M.config.lang_num)
 end
 
@@ -340,24 +373,29 @@ M.cmd.InterlaceWithL2 = function(params)
 end
 
 M.cmd.Deinterlace = function(a)
+  -- :[range]ItDeinterlace, works on the whole buffer if range is not provided
+  -- upper- and lower-most empty lines are ignored
+  -- requires the range is paired, [(, L2_1), (L1_2, L2_2), (L1_3, L2_3), ...] will make the buffer chaotic
+
   -- 0 does not indicate current buffer to deletebufline(), has to use nvim_get_current_buf()
   local buf = vim_api.nvim_get_current_buf()
+
+  -- remove leading and trailing empty lines
+  -- matchbufline() returns a list, lua can use next(list) to check empty or not
+  while next(vim_fn.matchbufline(buf, '^$', a.line1, a.line1)) do
+    a.line1 = a.line1 + 1
+  end
+  while next(vim_fn.matchbufline(buf, '^$', a.line2, a.line2)) do
+    a.line2 = a.line2 - 1
+  end
 
   -- {start} is zero-based, thus (a.line1 - 1) and (a.line2 - 1)
   -- {end} is exclusive, thus (a.line2 - 1 + 1), thus a.line2
   local lines = vim_api.nvim_buf_get_lines(buf, a.line1 - 1, a.line2, false)
 
-  -- remove leading and trailing empty lines
-  while lines[#lines] == "" do
-    table.remove(lines)
-  end
-  while lines[1] == "" do
-    table.remove(lines, 1)
-  end
-
   local results = {}
   -- gather lines from each language and append to {results}
-  for offset = 1, M.config.lang_num, 1 do
+  for offset = 1, M.config.lang_num do
     for chunkno = 0, #lines - offset, (M.config.lang_num + 1) do
       table.insert(results, lines[chunkno + offset])
     end
@@ -472,6 +510,34 @@ M.cmd.Load = function(a)
   end
 end
 
+M.cmd.JumpToNextUnaligned = function()
+  local buf = vim_api.nvim_get_current_buf()
+  local lineno = vim_fn.line(".")
+  -- locate first line of the nearest chunk below and start search from there
+  while lineno % (M.config.lang_num + 1) ~= 1 do lineno = lineno + 1 end
+  local lastline = vim_fn.line("$")
+
+  for l = lineno, lastline, (M.config.lang_num + 1) do
+    local chunk_lines = vim_api.nvim_buf_get_lines(buf, l - 1, l - 1 + M.config.lang_num, true)
+    -- Note: `vim.iter()` scans table input to decide if it is a list or a dict; to
+    -- avoid this cost you can wrap the table with an iterator e.g.
+    -- `vim.iter(ipairs({…}))`
+    for i, line1 in vim.iter(ipairs(chunk_lines)) do
+      local weight1 = M.config.language_weight[tostring(i)]
+      for j, line2 in vim.iter(ipairs(chunk_lines)):skip(i) do
+        local weight2 = M.config.language_weight[tostring(j)]
+        if vim_fn.strcharlen(line1) * weight1 - vim_fn.strcharlen(line2) * weight2 > 0 then
+          vim_fn.cursor(l, 1)
+          vim_api.nvim_feedkeys("zz", "n", true)
+          return
+        end
+      end
+    end
+  end
+
+  vim.print("Not Found")
+end
+
 ---@param shortcut string
 ---@return nil
 _H.store_orig_mapping = function(shortcut)
@@ -512,9 +578,11 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "PushUpPair", M.cmd.PushUpPair, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "SetLangNum", M.cmd.SetLangNum, { nargs = "?" })
   create_command(M.config.cmd_prefix .. "SetSeparator", M.cmd.SetSeparator, { nargs = "*" })
+  create_command(M.config.cmd_prefix .. "SetWeight", M.cmd.SetWeight, { nargs = "*" })
   create_command(M.config.cmd_prefix .. "SplitChineseSentences", M.cmd.SplitChineseSentences, { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "SplitEnglishSentences", M.cmd.SplitEnglishSentences, { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "UnmapInterlaced", M.cmd.UnmapInterlaced, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "JumpToNextUnaligned", M.cmd.JumpToNextUnaligned, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "ClearMatches", mt.cmd.ClearMatches, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "ListHighlights", mt.cmd.ListHighlights, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "ListMatches", mt.cmd.ListMatches, { nargs = 0 })
