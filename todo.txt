@@ -1,0 +1,23 @@
+Reference:
+  a bulk of colors
+   https://github.com/inkarkat/vim-mark
+
+
+方便地添加match
+方便地删除match
+方便地查看光标下match的group
+方便地修改match的pattern
+
+Deinterlace 适配 langno
+  或者这样？
+    :ItDeInterlace 使用配置的lang_num
+    :ItDeinterlace 2 1 使用args数量，这里args有两个所以按lang_num=2计算，比例为2:1
+
+*SetSeparatorL1 适配 langno
+InterlaceWithL1 适配 langno
+  左侧是已两两对齐的
+
+*按D时的 trim 不只要删掉空白字符还要删掉两侧的 separator
+
+used colors
+auto locate impaired lines
