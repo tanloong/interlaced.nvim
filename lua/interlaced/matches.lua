@@ -218,15 +218,6 @@ M.cmd.MatchAdd = function(a)
   local patterns = nil
   local color = nil
 
-  -- handle range
-  -- :i,jItMatchAdd
-  -- :.ItMatchAdd
-  if a.range > 0 then
-    -- getline() returns a list if {end} is provided
-    ---@type table
-    patterns = vim.tbl_map(_H.escape_text, vim_fn.getline(a.line1, a.line2))
-  end
-
   -- handle color and pattern(s)
   if #a.fargs > 1 then
     -- :ItMatchAdd {group} {pattern}

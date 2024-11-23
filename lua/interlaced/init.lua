@@ -590,7 +590,7 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "ListHighlights", mt.cmd.ListHighlights, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "ListMatches", mt.cmd.ListMatches, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "MatchAdd", mt.cmd.MatchAdd,
-    { complete = "highlight", nargs = "*", range = true })
+    { complete = "highlight", nargs = "*" })
   create_command(M.config.cmd_prefix .. "MatchAddVisual", mt.cmd.MatchAddVisual,
     { complete = "highlight", nargs = "*", range = true })
   create_command(M.config.cmd_prefix .. "ToggleMatches", mt.cmd.ToggleMatches, { nargs = 0 })
