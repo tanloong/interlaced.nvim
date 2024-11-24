@@ -15,10 +15,11 @@ local mt = require("interlaced.matches")
 -- NOTE: Develop test mode !!
 require("interlaced.test")
 
+logger = require("interlaced.logger")
+
 local _H = {}
 local M = {
   _H = _H,
-  _Name = "Interlaced",
   _orig_mappings = {},
   _is_mappings_on = false,
   -- A list of regex patterns (named entities, numbers, dates, etc) users want to highlight
@@ -28,35 +29,6 @@ local M = {
   config = {},
   cmd = {},
 }
-
----@param msg string # message to log
----@param kind string # hl group to use for logging
----@param history boolean # whether to add the message to history
-M._log = function(msg, kind, history)
-  vim.schedule(function()
-    vim_api.nvim_echo({
-      { M._Name .. ": " .. msg, kind },
-    }, history, {})
-  end)
-end
-
--- nicer error messages using nvim_echo
----@param msg string # error message
-M.error = function(msg)
-  M._log(msg, "ErrorMsg", true)
-end
-
--- nicer warning messages using nvim_echo
----@param msg string # warning message
-M.warning = function(msg)
-  M._log(msg, "WarningMsg", true)
-end
-
--- nicer plain messages using nvim_echo
----@param msg string # plain message
-M.info = function(msg)
-  M._log(msg, "Normal", true)
-end
 
 _H.append_to_3_lines_above = function(lineno)
   local lineno_target = lineno - (M.config.lang_num + 1)
@@ -80,20 +52,20 @@ end
 
 M.cmd.MapInterlaced = function()
   if M._is_mappings_on then
-    M.warning("Keybindings already on, nothing to do")
+    logger.warning("Keybindings already on, nothing to do")
     return
   end
   for func, shortcut in pairs(M.config.mappings) do
     _H.store_orig_mapping(shortcut)
     keyset("n", shortcut, M.cmd[func], { noremap = true, buffer = true, nowait = true })
   end
-  M.info("Keybindings on")
+  logger.info("Keybindings on")
   M._is_mappings_on = true
 end
 
 M.cmd.UnmapInterlaced = function()
   if not M._is_mappings_on then
-    M.warning("Keybindings already off, nothing to do")
+    logger.warning("Keybindings already off, nothing to do")
     return
   end
   for keystroke, mapping in pairs(M._orig_mappings) do
@@ -104,14 +76,14 @@ M.cmd.UnmapInterlaced = function()
       vim_fn.mapset("n", false, mapping)
     end
   end
-  M.info("Keybindings off")
+  logger.info("Keybindings off")
   M._is_mappings_on = false
 end
 
 M.cmd.PushUp = function()
   local lineno = vim_fn.line(".")
   if lineno <= (M.config.lang_num + 1) then
-    M.warning("Pushing too early, please move down your cursor.")
+    logger.warning("Pushing too early, please move down your cursor.")
     return
   end
 
@@ -146,7 +118,7 @@ M.cmd.PullUp = function()
   local curr_lineno = here[2]
   local last_lineno = vim_fn.line("$")
   if last_lineno - curr_lineno < (M.config.lang_num + 1) then
-    M.warning("No more lines can be pulled up.")
+    logger.warning("No more lines can be pulled up.")
     return
   end
 
@@ -160,7 +132,7 @@ M.cmd.PullUpPair = function()
   local curr_lineno = here[2]
   local last_lineno = vim_fn.line("$")
   if last_lineno - curr_lineno < (M.config.lang_num + 1) + 1 then
-    M.warning("No more lines can be pulled up.")
+    logger.warning("No more lines can be pulled up.")
     return
   end
 
@@ -226,14 +198,14 @@ M.cmd.SetWeight = function(a)
 
   -- :ItSetWeight {int} {number}
   if #a.fargs ~= 2 then
-    M.error("Expected 2 arguments, got " .. #a.fargs)
+    logger.error("Expected 2 arguments, got " .. #a.fargs)
     return
   end
 
   local l = a.fargs[1]
   local weight = tonumber(a.fargs[2])
   if weight == nil then
-    M.error(a.fargs[2] .. " does not look like a number")
+    logger.error(a.fargs[2] .. " does not look like a number")
     return
   end
 
@@ -253,7 +225,7 @@ M.cmd.SetSeparator = function(a)
 
   -- :ItSetSeparator {int} {str}
   if #a.fargs ~= 2 then
-    M.error("Expected 2 arguments, got " .. #a.fargs)
+    logger.error("Expected 2 arguments, got " .. #a.fargs)
     return
   end
   local l = a.fargs[1]
@@ -339,7 +311,7 @@ _H.InterlaceWithL = function(params, is_curbuf_L1)
   local filepath = params.args
   local fh, err = io.open(filepath, "r")
   if not fh then
-    M.warning("Failed to open file for reading: " .. filepath .. "\nError: " .. err)
+    logger.warning("Failed to open file for reading: " .. filepath .. "\nError: " .. err)
     return nil
   end
   local lines_that = {}
@@ -457,7 +429,7 @@ M.cmd.Interlace = function(a)
   elseif arg_count == 2 then
     x, y = tonumber(a.fargs[1]), tonumber(a.fargs[2])
   else
-    M.warning("Argument Error: can have at most 2 arguments")
+    logger.warning("Argument Error: can have at most 2 arguments")
   end
 
   local i = a.line1 + x - 1
@@ -553,7 +525,7 @@ end
 M.setup = function(opts)
   opts = opts or {}
   if type(opts) ~= "table" then
-    M.error(string.format("setup() expects table, but got %s:\n%s", type(opts), vim.inspect(opts)))
+    logger.error(string.format("setup() expects table, but got %s:\n%s", type(opts), vim.inspect(opts)))
     opts = {}
   end
   M.config = vim.tbl_deep_extend("force", config, opts)
@@ -593,7 +565,7 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "MatchAddVisual", mt.cmd.MatchAddVisual, { range = true })
   create_command(M.config.cmd_prefix .. "ToggleMatches", mt.cmd.ToggleMatches, { nargs = 0 })
 
-  M.info("started")
+  logger.info("started")
 end
 
 return M

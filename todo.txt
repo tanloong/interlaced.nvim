@@ -4,6 +4,9 @@ Reference:
 
 在ListMatches窗口的开头显示快捷键和排序方式
 
+
+如果listmatches split window是开着的，新增matches时需要同时更新listamtches split window；并且再 :ItListMatches 或 :ItMatchAdd(Visual) 时不要重复打开新的窗口，直接把光标定位到那个已经打开的window上。
+
 :ItMatchAdd(Visual)时自动打开ListMatches split窗口，在cmd模式下map <c-e> <c-f> <c-y> <c-b> <c-d> <c-u> 为scoll ListMatches window，命令结束后取消cmap
   在matches.lua里cmap和取消cmap时要保存已有map以及恢复map，这个机制在init.lua里已经有了，要抽离出来给init.lua和matches.lua共用
 
@@ -19,7 +22,10 @@ Deinterlace 适配 langno
 
 *SetSeparatorL1 适配 langno
 InterlaceWithL1 适配 langno
-  左侧是已两两对齐的
+  :InterlaceWithL i filepath
+  当前文件是interlaced file，filepath是常规文件时，把filepath读进当前文件
+  当前文件是常规文件，filepath是interlaced file，把当前文件读进interlaced file并打开interlaced file
+  当前文件和filepath都是常规文件时，新建interlaced file
 
 *按D时的 trim 不只要删掉空白字符还要删掉两侧的 separator
 

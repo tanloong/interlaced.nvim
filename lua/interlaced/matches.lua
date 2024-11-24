@@ -4,6 +4,8 @@ local hl = vim.api.nvim_set_hl
 local vim_fn = vim.fn
 local vim_api = vim.api
 
+logger = require("interlaced.logger")
+
 local _H = {}
 local M = {
   _H = _H,
@@ -42,8 +44,10 @@ _H.matchadd = function(color, pattern)
   elseif color == "_" or color == nil or color:len() == 0 then
     color = _H.randcolor()
     -- else use {color} as is
+  elseif vim_fn.hlID(color) == 0 then
+    logger.error("Highlight group is empty or does not exist")
+    return
   end
-
 
   -- delete the previously defined match that has the same pattern.
   -- iterating in reverse order to avoid affecting the indices of the
@@ -205,6 +209,11 @@ M.cmd.ListMatches = function()
 end
 
 M.cmd.MatchAddVisual = function()
+  -- obtain pattern first, got error if after the listwin is created, don't know why...
+  -- consider user's selectd text as plain text and escape special chars in the pattern; matchadd() by defualt consider the given pattern magic
+  local pattern = table.concat(
+    vim.tbl_map(_H.escape_text, vim_fn.getregion(vim_fn.getpos("'<"), vim_fn.getpos("'>"), { type = "v" })), [[\n]])
+
   local listwin = M.cmd.ListMatches()
   _H.cmap_remote_listwin(true, listwin)
   vim.cmd.redraw() -- redraw to let the ListMatches split window display
@@ -215,19 +224,13 @@ M.cmd.MatchAddVisual = function()
     vim_api.nvim_win_close(listwin, true)
     return
   end
-  if vim_fn.hlID(color) == 0 then
-    vim_api.nvim_win_close(listwin, true)
-    M.info("Highlight group is empty or does not exist")
-    return
-  end
 
-  local pattern = table.concat(
-    vim.tbl_map(_H.escape_text, vim_fn.getregion(vim_fn.getpos("'<"), vim_fn.getpos("'>"), { type = "v" })), [[\n]])
-
-  _H.matchadd(color, pattern)
-
+  -- should be BEFORE the _H.matchadd to ensure the matchadd is applied to the work window
   vim_api.nvim_win_close(listwin, true)
   _H.cmap_remote_listwin(false, listwin)
+
+  -- should be AFTER the listwin is closed to ensure the matchadd is applied to the work window
+  _H.matchadd(color, pattern)
 end
 
 M.cmd.MatchAdd = function()
@@ -235,29 +238,26 @@ M.cmd.MatchAdd = function()
   _H.cmap_remote_listwin(true, listwin)
   vim.cmd.redraw() -- redraw to let the ListMatches split window display
 
-  -- ---If one pattern is added more than once, the old ones will be discarded. (see _H.matchadd function)
+  ---If one pattern is added more than once, the old ones will be discarded. (see _H.matchadd function)
   local color = vim_fn.input({ prompt = "Highlight group: ", completion = "highlight", cancelreturn = vim.NIL })
   if color == vim.NIL then
     vim_api.nvim_win_close(listwin, true)
     return
   end
-  if vim_fn.hlID(color) == 0 then
-    vim_api.nvim_win_close(listwin, true)
-    M.info("Highlight group is empty or does not exist")
-    return
-  end
 
+  -- consider user's input as a regex pattern and does not escape special chars in the pattern
   local pattern = vim_fn.input({ prompt = "Pattern: ", cancelreturn = vim.NIL })
   if pattern == vim.NIL then
     vim_api.nvim_win_close(listwin, true)
     return
   end
-  pattern = _H.escape_text(pattern)
 
-  _H.matchadd(color, pattern)
-
+  -- should be BEFORE the _H.matchadd to ensure the matchadd is applied to the work window
   vim_api.nvim_win_close(listwin, true)
   _H.cmap_remote_listwin(false, listwin)
+
+  -- should be AFTER the listwin is closed to ensure the matchadd is applied to the work window
+  _H.matchadd(color, pattern)
 end
 
 ---@param enable boolean
@@ -275,7 +275,8 @@ _H.cmap_remote_listwin = function(enable, listwin)
     end
   else
     for _, stroke in ipairs(strokes) do
-      vim_api.nvim_del_keymap("c", stroke)
+      -- 会报错不存在对应的map，不知道为什么
+      pcall(vim_api.nvim_del_keymap, "c", stroke)
     end
   end
 end
