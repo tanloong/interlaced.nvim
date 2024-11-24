@@ -1,6 +1,6 @@
-Reference:
-  a bulk of colors
-   https://github.com/inkarkat/vim-mark
+related efforts:
+  https://github.com/azabiong/vim-highlighter/blob/main/autoload/highlighter.vim
+  https://github.com/inkarkat/vim-mark
 
 在ListMatches窗口的开头显示快捷键和排序方式
 

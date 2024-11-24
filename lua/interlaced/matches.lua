@@ -33,7 +33,8 @@ end
 
 ---@param color string|nil
 ---@param pattern string
-_H.matchadd = function(color, pattern)
+---@param win integer|nil
+_H.matchadd = function(color, pattern, win)
   if color == "." then
     color = M.last_color or _H.randcolor()
     -- color is cmd-line args
@@ -49,27 +50,37 @@ _H.matchadd = function(color, pattern)
     return
   end
 
-  -- delete the previously defined match that has the same pattern.
-  -- iterating in reverse order to avoid affecting the indices of the
-  --   elements that have not yet been checked when an even element is removed
-  for i, m in vim.iter(M._matches):rev():enumerate() do
-    if m.pattern == pattern then
-      -- 1. delete from matches
-      vim_fn.matchdelete(m.id)
-      -- 2. delete from {M._matches}
-      table.remove(M._matches, i)
-    end
-  end
+  _H.matchdelete(pattern, win)
 
   _H.set_enable_matches(true)
   -- 1. add to matches
-  local id = vim_fn.matchadd(color, pattern)
+  local dict = win and { window = win } or {}
+  local id = vim_fn.matchadd(color, pattern, 10, -1, dict)
 
   -- 2. add to {M._matches}
   -- {M._matches} might be used for setmatches(), which complains about
   --   missing required keys, so should include all 4 of them.
   table.insert(M._matches, { group = color, pattern = pattern, priority = 10, id = id })
   M.last_color = color
+end
+
+---@param pattern string
+---@param win integer|nil
+---Unlike the builtin matchdelete(), this func takes a pattern instead of an id
+_H.matchdelete = function(pattern, win)
+  if not pattern then return end
+
+  -- delete the previously defined match that has the same pattern.
+  -- iterating in reverse order to avoid affecting the indices of the
+  --   elements that have not yet been checked when an even element is removed
+  for i, m in vim.iter(M._matches):rev():enumerate() do
+    if m.pattern == pattern then
+      -- 1. delete from matches
+      vim_fn.matchdelete(m.id, win)
+      -- 2. delete from {M._matches}
+      table.remove(M._matches, i)
+    end
+  end
 end
 
 ---@param enable boolean
@@ -115,7 +126,7 @@ M.cmd.ListMatches = function()
   vim.bo[bufnr].buftype = 'nowrite'
 
   local deleted_matches = {}
-  local sort_methods = {
+  local sort_options = {
     -- id order
     function(a, b) return a.id < b.id end,
     -- color order
@@ -123,12 +134,13 @@ M.cmd.ListMatches = function()
     -- pattern order
     function(a, b) return a.pattern < b.pattern end,
   }
+  local sort_options_n = #sort_options
   local sort = 0
   local function cycle_sort()
     -- cycle to the next sort method, thus sort + 1
-    sort = (sort % #sort_methods) + 1
+    sort = (sort % sort_options_n) + 1
     -- lua table is 1-based, thus +1
-    table.sort(M._matches, sort_methods[sort])
+    table.sort(M._matches, sort_options[sort])
     local display_lines = {}
     local display_patterns = {}
     local num_length = tostring(#M._matches):len()
@@ -154,6 +166,16 @@ M.cmd.ListMatches = function()
     vim.bo[bufnr].modifiable = false
   end
   cycle_sort()
+
+  ---Refresh the listwin when matches are changed
+  local function refresh_match()
+    -- when listwin is initially created, sort=0;
+    -- after that sort will always be [1, 3], see cycle_sort();
+    -- minus 1 makes sort be [0, 2]
+    sort = sort - 1
+    -- after a minus 1 the same sort will still be used, acting like a refresh
+    cycle_sort()
+  end
 
   local function delete_match(lineno)
     lineno = lineno or vim_fn.line(".")
@@ -193,12 +215,35 @@ M.cmd.ListMatches = function()
 
     vim_fn.setcursorcharpos(m.display_lineno, 1)
   end
+  local function change_match()
+    local lineno = vim_fn.line(".")
+    local line = vim_fn.getline(lineno)
+    -- {group name} does allow whitespace (:h group-name), use \S is OK
+    local orig_color = line:match([[^%d+%.%s*(%S+)]])
+    local orig_pattern = line:match([[^%d+%.%s*%S+%s*(.*)%s*$]])
+
+    new_color = vim_fn.input({
+      default = orig_color,
+      prompt = "Highlight group: ",
+      completion = "highlight",
+      cancelreturn = vim.NIL
+    })
+    if new_color == vim.NIL then return end
+    new_pattern = vim_fn.input({ default = orig_pattern, prompt = "Pattern: ", cancelreturn = vim.NIL })
+    if new_pattern == vim.NIL then return end
+
+    _H.matchdelete(orig_pattern, origwin)
+    _H.matchadd(new_color, new_pattern, origwin)
+
+    refresh_match()
+  end
 
   for _, entry in ipairs({
     { "n", "d", delete_match,  "Delete match(es) of the pattern on cursor line" },
     { "n", "u", restore_match, "Restore the last deleted match" },
     { "n", "q", vim.cmd.quit,  "Quit" },
     { "n", "s", cycle_sort,    "cycle through sort methods (1. pattern, 2. color, 3. insertion order)" },
+    { "n", "c", change_match,  "modify the pattern or color of the match under the cursor" },
   }) do
     local modes, from, to, desc = unpack(entry)
     vim.keymap.set(modes, from, to, { desc = desc, silent = true, buffer = true, nowait = true, noremap = true })
