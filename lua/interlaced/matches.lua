@@ -34,7 +34,7 @@ end
 ---@param color string|nil
 ---@param pattern string
 ---@param win integer|nil
-_H.matchadd = function(color, pattern, win)
+_H.matchadd = function(color, pattern, win, id)
   if color == "." then
     color = M.last_color or _H.randcolor()
     -- color is cmd-line args
@@ -54,11 +54,11 @@ _H.matchadd = function(color, pattern, win)
 
   _H.set_enable_matches(true)
   -- 1. add to matches
-  local id = nil
+  id = id or -1
   if win then
-    id = vim_fn.matchadd(color, pattern, 10, -1, { window = win })
+    id = vim_fn.matchadd(color, pattern, 10, id, { window = win })
   else
-    id = vim_fn.matchadd(color, pattern)
+    id = vim_fn.matchadd(color, pattern, 10, id)
   end
 
   -- 2. add to {M._matches}
@@ -70,9 +70,11 @@ end
 
 ---@param pattern string
 ---@param win integer|nil
+---@return integer|nil integer the id of the last delete match whose pattern equals to the give one
 ---Unlike the builtin matchdelete(), this func takes a pattern instead of an id
 _H.matchdelete = function(pattern, win)
-  if not pattern then return end
+  local id = nil
+  if not pattern then return id end
 
   -- delete the previously defined match that has the same pattern.
   -- iterating in reverse order to avoid affecting the indices of the
@@ -81,10 +83,12 @@ _H.matchdelete = function(pattern, win)
     if m.pattern == pattern then
       -- 1. delete from matches
       vim_fn.matchdelete(m.id, win)
+      id = m.id
       -- 2. delete from {M._matches}
       table.remove(M._matches, i)
     end
   end
+  return id
 end
 
 ---@param enable boolean
@@ -237,8 +241,8 @@ M.cmd.ListMatches = function()
     new_pattern = vim_fn.input({ default = orig_pattern, prompt = "Pattern: ", cancelreturn = vim.NIL })
     if new_pattern == vim.NIL then return end
 
-    _H.matchdelete(orig_pattern, origwin)
-    _H.matchadd(new_color, new_pattern, origwin)
+    local id = _H.matchdelete(orig_pattern, origwin)
+    _H.matchadd(new_color, new_pattern, origwin, id)
 
     refresh_match()
   end
