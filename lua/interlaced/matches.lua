@@ -30,8 +30,8 @@ _H.randcolor = function()
 end
 
 ---@param color string|nil
----@param patterns table
-_H.matchadd = function(color, patterns)
+---@param pattern string
+_H.matchadd = function(color, pattern)
   if color == "." then
     color = M.last_color or _H.randcolor()
     -- color is cmd-line args
@@ -44,30 +44,28 @@ _H.matchadd = function(color, patterns)
     -- else use {color} as is
   end
 
-  -- directly call matchdelete() and matchadd()
-  for _, pattern in ipairs(patterns) do
-    -- delete the previously defined match that has the same pattern.
-    -- iterating in reverse order to avoid affecting the indices of the
-    --   elements that have not yet been checked when an even element is removed
-    for i, m in vim.iter(M._matches):rev():enumerate() do
-      if m.pattern == pattern then
-        -- 1. delete from matches
-        vim_fn.matchdelete(m.id)
-        -- 2. delete from {M._matches}
-        table.remove(M._matches, i)
-      end
+
+  -- delete the previously defined match that has the same pattern.
+  -- iterating in reverse order to avoid affecting the indices of the
+  --   elements that have not yet been checked when an even element is removed
+  for i, m in vim.iter(M._matches):rev():enumerate() do
+    if m.pattern == pattern then
+      -- 1. delete from matches
+      vim_fn.matchdelete(m.id)
+      -- 2. delete from {M._matches}
+      table.remove(M._matches, i)
     end
-
-    _H.set_enable_matches(true)
-    -- 1. add to matches
-    local id = vim_fn.matchadd(color, pattern)
-
-    -- 2. add to {M._matches}
-    -- {M._matches} might be used for setmatches(), which complains about
-    --   missing required keys, so should include all 4 of them.
-    table.insert(M._matches, { group = color, pattern = pattern, priority = 10, id = id })
-    M.last_color = color
   end
+
+  _H.set_enable_matches(true)
+  -- 1. add to matches
+  local id = vim_fn.matchadd(color, pattern)
+
+  -- 2. add to {M._matches}
+  -- {M._matches} might be used for setmatches(), which complains about
+  --   missing required keys, so should include all 4 of them.
+  table.insert(M._matches, { group = color, pattern = pattern, priority = 10, id = id })
+  M.last_color = color
 end
 
 ---@param enable boolean
@@ -101,9 +99,11 @@ M.cmd.ListHighlights = function()
   vim.cmd([[filter /\v^]] .. M.group_prefix .. "/ highlight")
 end
 
+---@return integer the window id of the ListMatches window
 M.cmd.ListMatches = function()
-  local scrwin = vim_api.nvim_get_current_win()
+  local origwin = vim_api.nvim_get_current_win()
   vim.cmd.split()
+  local listwin = vim_api.nvim_get_current_win()
   local bufnr = vim_api.nvim_create_buf(true, true)
   vim_api.nvim_buf_set_name(bufnr, "interlaced://" .. tostring(bufnr))
   vim_api.nvim_set_current_buf(bufnr)
@@ -112,12 +112,12 @@ M.cmd.ListMatches = function()
 
   local deleted_matches = {}
   local sort_methods = {
+    -- id order
+    function(a, b) return a.id < b.id end,
     -- color order
     function(a, b) return a.group < b.group end,
     -- pattern order
     function(a, b) return a.pattern < b.pattern end,
-    -- id order
-    function(a, b) return a.id < b.id end,
   }
   local sort = 0
   local function cycle_sort()
@@ -159,7 +159,7 @@ M.cmd.ListMatches = function()
     for i, m in vim.iter(M._matches):rev():enumerate() do
       if m.pattern == pattern then
         -- 1. delete from matches
-        pcall(vim_fn.matchdelete, m.id, scrwin)
+        pcall(vim_fn.matchdelete, m.id, origwin)
         -- display and display_lineno is used in restore_match()
         m.display = line
         m.display_lineno = lineno
@@ -178,7 +178,7 @@ M.cmd.ListMatches = function()
   local function restore_match()
     local m = table.remove(deleted_matches)
     if m == nil then return end
-    vim_fn.matchadd(m.group, m.pattern, m.priority, m.id, { window = scrwin })
+    vim_fn.matchadd(m.group, m.pattern, m.priority, m.id, { window = origwin })
     -- update {matches}
     table.insert(M._matches, m)
 
@@ -199,59 +199,85 @@ M.cmd.ListMatches = function()
     local modes, from, to, desc = unpack(entry)
     vim.keymap.set(modes, from, to, { desc = desc, silent = true, buffer = true, nowait = true, noremap = true })
   end
+
+  vim_fn.win_execute(listwin, [[normal! G]])
+  return listwin
 end
 
-M.cmd.MatchAddVisual = function(a)
-  if #a.fargs > 1 then
-    M.error("At most 1 argument is expected but got " .. #a.fargs)
+M.cmd.MatchAddVisual = function()
+  local listwin = M.cmd.ListMatches()
+  _H.cmap_remote_listwin(true, listwin)
+  vim.cmd.redraw() -- redraw to let the ListMatches split window display
+
+  ---If one pattern is added more than once, the old ones will be discarded. (see _H.matchadd function)
+  local color = vim_fn.input({ prompt = "Highlight group: ", completion = "highlight", cancelreturn = vim.NIL })
+  if color == vim.NIL then
+    vim_api.nvim_win_close(listwin, true)
+    return
+  end
+  if vim_fn.hlID(color) == 0 then
+    vim_api.nvim_win_close(listwin, true)
+    M.info("Highlight group is empty or does not exist")
     return
   end
 
-  local pattern = { table.concat(vim_fn.getregion(vim_fn.getpos("'<"), vim_fn.getpos("'>"), { type = "v" }), [[\n]]) }
+  local pattern = table.concat(
+    vim.tbl_map(_H.escape_text, vim_fn.getregion(vim_fn.getpos("'<"), vim_fn.getpos("'>"), { type = "v" })), [[\n]])
 
-  local color = a.args
   _H.matchadd(color, pattern)
+
+  vim_api.nvim_win_close(listwin, true)
+  _H.cmap_remote_listwin(false, listwin)
 end
 
-M.cmd.MatchAdd = function(a)
-  ---If one pattern is added more than one, the old ones will be discarded. (see highlights module highlight function)
-  local patterns = nil
-  local color = nil
+M.cmd.MatchAdd = function()
+  local listwin = M.cmd.ListMatches()
+  _H.cmap_remote_listwin(true, listwin)
+  vim.cmd.redraw() -- redraw to let the ListMatches split window display
 
-  -- handle color and pattern(s)
-  if #a.fargs > 1 then
-    -- :ItMatchAdd {group} {pattern}
-    -- :ItMatchAdd {group} {pattern1} {pattern2} ...
-    color = table.remove(a.fargs, 1)
-    if patterns == nil then
-      patterns = a.fargs
-    else
-      -- :{range}ItMatchAdd group pattern
-      -- :{range}ItMatchAdd group pattern1 pattern2 ...
-      for pat in a.fargs do
-        patterns:insert(pat)
-      end
+  -- ---If one pattern is added more than once, the old ones will be discarded. (see _H.matchadd function)
+  local color = vim_fn.input({ prompt = "Highlight group: ", completion = "highlight", cancelreturn = vim.NIL })
+  if color == vim.NIL then
+    vim_api.nvim_win_close(listwin, true)
+    return
+  end
+  if vim_fn.hlID(color) == 0 then
+    vim_api.nvim_win_close(listwin, true)
+    M.info("Highlight group is empty or does not exist")
+    return
+  end
+
+  local pattern = vim_fn.input({ prompt = "Pattern: ", cancelreturn = vim.NIL })
+  if pattern == vim.NIL then
+    vim_api.nvim_win_close(listwin, true)
+    return
+  end
+  pattern = _H.escape_text(pattern)
+
+  _H.matchadd(color, pattern)
+
+  vim_api.nvim_win_close(listwin, true)
+  _H.cmap_remote_listwin(false, listwin)
+end
+
+---@param enable boolean
+---@param listwin integer
+_H.cmap_remote_listwin = function(enable, listwin)
+  local strokes = { "<c-e>", "<c-y>", "<c-d>", "<c-u>", "<c-f>", "<c-b>" }
+  if enable then
+    for _, stroke in ipairs(strokes) do
+      vim.keymap.set("c", stroke,
+        function()
+          local code = vim.api.nvim_replace_termcodes(stroke, true, false, true)
+          vim_fn.win_execute(listwin, [[normal! ]] .. code)
+          vim.cmd.redraw()
+        end, { silent = true, buffer = true, nowait = true, noremap = true })
     end
   else
-    -- :ItMatchAdd {group} (a.fargs == 1)
-    -- :ItMatchAdd (a.fargs == 1)
-    -- :{range}ItMatchAdd (a.fargs == 1)
-    color = a.args
-  end
-
-  -- :ItMatchAdd [group]
-  if patterns == nil then
-    -- with {list} set as true, expand() will return list instead of string
-    ---@type table
-    patterns = vim_fn.expand("<cword>", false, true)
-    -- search matches that forms whole words
-    for i, v in ipairs(patterns) do
-      patterns[i] = [[\<]] .. v .. [[\>]]
+    for _, stroke in ipairs(strokes) do
+      vim_api.nvim_del_keymap("c", stroke)
     end
   end
-
-  -- patterns is list for all above occasions
-  _H.matchadd(color, patterns)
 end
 
 return M

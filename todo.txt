@@ -2,6 +2,10 @@ Reference:
   a bulk of colors
    https://github.com/inkarkat/vim-mark
 
+在ListMatches窗口的开头显示快捷键和排序方式
+
+:ItMatchAdd(Visual)时自动打开ListMatches split窗口，在cmd模式下map <c-e> <c-f> <c-y> <c-b> <c-d> <c-u> 为scoll ListMatches window，命令结束后取消cmap
+  在matches.lua里cmap和取消cmap时要保存已有map以及恢复map，这个机制在init.lua里已经有了，要抽离出来给init.lua和matches.lua共用
 
 方便地添加match
 方便地删除match
