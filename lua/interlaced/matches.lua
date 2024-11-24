@@ -54,8 +54,12 @@ _H.matchadd = function(color, pattern, win)
 
   _H.set_enable_matches(true)
   -- 1. add to matches
-  local dict = win and { window = win } or {}
-  local id = vim_fn.matchadd(color, pattern, 10, -1, dict)
+  local id = nil
+  if win then
+    id = vim_fn.matchadd(color, pattern, 10, -1, { window = win })
+  else
+    id = vim_fn.matchadd(color, pattern)
+  end
 
   -- 2. add to {M._matches}
   -- {M._matches} might be used for setmatches(), which complains about
@@ -261,13 +265,14 @@ M.cmd.MatchAddVisual = function()
 
   local listwin = M.cmd.ListMatches()
   _H.cmap_remote_listwin(true, listwin)
-  vim.cmd.redraw() -- redraw to let the ListMatches split window display
+  vim.cmd.redraw() -- let the ListMatches split window display
 
   ---If one pattern is added more than once, the old ones will be discarded. (see _H.matchadd function)
   local color = vim_fn.input({ prompt = "Highlight group: ", completion = "highlight", cancelreturn = vim.NIL })
 
   -- should be BEFORE the _H.matchadd to ensure the matchadd is applied to the work window
   vim_api.nvim_win_close(listwin, true)
+  vim.cmd.redraw() -- let the ListMatches split window disappear
   _H.cmap_remote_listwin(false, listwin)
 
   if color == vim.NIL then return end
@@ -278,13 +283,14 @@ end
 M.cmd.MatchAdd = function()
   local listwin = M.cmd.ListMatches()
   _H.cmap_remote_listwin(true, listwin)
-  vim.cmd.redraw() -- redraw to let the ListMatches split window display
+  vim.cmd.redraw() -- let the ListMatches split window display
 
   ---If one pattern is added more than once, the old ones will be discarded. (see _H.matchadd function)
   local color = vim_fn.input({ prompt = "Highlight group: ", completion = "highlight", cancelreturn = vim.NIL })
 
   -- should be BEFORE the _H.matchadd to ensure the matchadd is applied to the work window
   vim_api.nvim_win_close(listwin, true)
+  vim.cmd.redraw() -- let the ListMatches split window disappear
   _H.cmap_remote_listwin(false, listwin)
 
   if color == vim.NIL then return end
