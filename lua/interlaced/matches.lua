@@ -223,8 +223,8 @@ M.cmd.ListMatches = function()
     local lineno = vim_fn.line(".")
     local line = vim_fn.getline(lineno)
     -- {group name} does allow whitespace (:h group-name), use \S is OK
-    local orig_color = line:match([[^%d+%.%s*(%S+)]])
-    local orig_pattern = line:match([[^%d+%.%s*%S+%s*(.*)%s*$]])
+    local orig_color = line:match([[^%s*%d+%.%s*(%S+)]])
+    local orig_pattern = line:match([[^%s*%d+%.%s*%S+%s*(.*)%s*$]])
 
     new_color = vim_fn.input({
       default = orig_color,
