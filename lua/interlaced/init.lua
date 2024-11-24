@@ -164,8 +164,8 @@ M.cmd.PushDownRightPart = function()
 
   local before_cursor = curr_line:sub(1, cursor_col - 1)
   local after_cursor = curr_line:sub(cursor_col)
-  before_cursor = vim_fn.substitute(before_cursor, [[\s\+$]], "", "")
-  after_cursor = vim_fn.substitute(after_cursor, [[^\s\+]], "", "")
+  before_cursor = before_cursor:gsub([[%s+$]], "", 1)
+  after_cursor = after_cursor:gsub([[^%s+]], "", 1)
 
   local languid = tostring(lineno % (M.config.lang_num + 1))
   local sep = M.config.language_separator[languid]

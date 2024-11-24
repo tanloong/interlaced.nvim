@@ -184,7 +184,7 @@ M.cmd.ListMatches = function()
   local function delete_match(lineno)
     lineno = lineno or vim_fn.line(".")
     local line = vim_fn.getline(lineno)
-    local pattern = vim_fn.substitute(line, [[\v^\d+\.\s*\S+\s*]], "", "")
+    local pattern = line:match([[^%s*%d+%.%s*%S+%s*(.*)%s*$]])
     -- invalid lines (those with pattern not in matches) will be skipped in this for loop and won't be appended to deleted_matches
     for i, m in vim.iter(M._matches):rev():enumerate() do
       if m.pattern == pattern then
@@ -219,6 +219,7 @@ M.cmd.ListMatches = function()
 
     vim_fn.setcursorcharpos(m.display_lineno, 1)
   end
+
   local function change_match()
     local lineno = vim_fn.line(".")
     local line = vim_fn.getline(lineno)
