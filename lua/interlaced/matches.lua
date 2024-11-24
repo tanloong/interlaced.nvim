@@ -220,15 +220,12 @@ M.cmd.MatchAddVisual = function()
 
   ---If one pattern is added more than once, the old ones will be discarded. (see _H.matchadd function)
   local color = vim_fn.input({ prompt = "Highlight group: ", completion = "highlight", cancelreturn = vim.NIL })
-  if color == vim.NIL then
-    vim_api.nvim_win_close(listwin, true)
-    return
-  end
 
   -- should be BEFORE the _H.matchadd to ensure the matchadd is applied to the work window
   vim_api.nvim_win_close(listwin, true)
   _H.cmap_remote_listwin(false, listwin)
 
+  if color == vim.NIL then return end
   -- should be AFTER the listwin is closed to ensure the matchadd is applied to the work window
   _H.matchadd(color, pattern)
 end
@@ -240,21 +237,16 @@ M.cmd.MatchAdd = function()
 
   ---If one pattern is added more than once, the old ones will be discarded. (see _H.matchadd function)
   local color = vim_fn.input({ prompt = "Highlight group: ", completion = "highlight", cancelreturn = vim.NIL })
-  if color == vim.NIL then
-    vim_api.nvim_win_close(listwin, true)
-    return
-  end
-
-  -- consider user's input as a regex pattern and does not escape special chars in the pattern
-  local pattern = vim_fn.input({ prompt = "Pattern: ", cancelreturn = vim.NIL })
-  if pattern == vim.NIL then
-    vim_api.nvim_win_close(listwin, true)
-    return
-  end
 
   -- should be BEFORE the _H.matchadd to ensure the matchadd is applied to the work window
   vim_api.nvim_win_close(listwin, true)
   _H.cmap_remote_listwin(false, listwin)
+
+  if color == vim.NIL then return end
+
+  -- consider user's input as a regex pattern and does not escape special chars in the pattern
+  local pattern = vim_fn.input({ prompt = "Pattern: ", cancelreturn = vim.NIL })
+  if pattern == vim.NIL then return end
 
   -- should be AFTER the listwin is closed to ensure the matchadd is applied to the work window
   _H.matchadd(color, pattern)
