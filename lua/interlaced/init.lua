@@ -563,7 +563,7 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "ListMatches", mt.cmd.ListMatches, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "MatchAdd", mt.cmd.MatchAdd, {})
   create_command(M.config.cmd_prefix .. "MatchAddVisual", mt.cmd.MatchAddVisual, { range = true })
-  create_command(M.config.cmd_prefix .. "ToggleMatches", mt.cmd.ToggleMatches, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "MatchToggle", mt.cmd.MatchToggle, { nargs = 0 })
 
   logger.info("started")
 end

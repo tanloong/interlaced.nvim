@@ -108,8 +108,7 @@ _H.escape_text = function(s)
   return vim_fn.substitute(vim_fn.escape(s, [[\^$.*[~]]), [[\n]], [[\\n]], "g")
 end
 
-
-M.cmd.ToggleMatches = function()
+M.cmd.MatchToggle = function()
   _H.set_enable_matches(not M.is_hl_matches)
 end
 
