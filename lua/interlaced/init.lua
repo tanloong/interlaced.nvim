@@ -104,18 +104,18 @@ M.cmd.PushUp = function()
 end
 
 M.cmd.PushUpPair = function()
-  local here = vim_fn.getpos(".")
+  local here = vim_api.nvim_win_get_cursor(0)
   vim_cmd([[normal! {]])
   for _ = 1, 2 do
     vim_fn.setcursorcharpos(vim_fn.line(".") + 1, 1)
     M.cmd.PushUp()
   end
-  vim_fn.setpos(".", here)
+  vim_api.nvim_win_set_cursor(0, here)
 end
 
 M.cmd.PullUp = function()
-  local here = vim_fn.getpos(".")
-  local curr_lineno = here[2]
+  local here = vim_api.nvim_win_get_cursor(0)
+  local curr_lineno = here[1]
   local last_lineno = vim_fn.line("$")
   if last_lineno - curr_lineno < (M.config.lang_num + 1) then
     logger.warning("No more lines can be pulled up.")
@@ -124,12 +124,12 @@ M.cmd.PullUp = function()
 
   vim_fn.setcursorcharpos(curr_lineno + (M.config.lang_num + 1), 1)
   M.cmd.PushUp()
-  vim_fn.setpos(".", here)
+  vim_api.nvim_win_set_cursor(0, here)
 end
 
 M.cmd.PullUpPair = function()
-  local here = vim_fn.getpos(".")
-  local curr_lineno = here[2]
+  local here = vim_api.nvim_win_get_cursor(0)
+  local curr_lineno = here[1]
   local last_lineno = vim_fn.line("$")
   if last_lineno - curr_lineno < (M.config.lang_num + 1) + 1 then
     logger.warning("No more lines can be pulled up.")
@@ -141,7 +141,7 @@ M.cmd.PullUpPair = function()
     vim_fn.setcursorcharpos(vim_fn.line(".") + 1, 1)
     M.cmd.PushUp()
   end
-  vim_fn.setpos(".", here)
+  vim_api.nvim_win_set_cursor(0, here)
 end
 
 M.cmd.PushDownRightPart = function()
@@ -452,7 +452,7 @@ M.cmd.Dump = function(a)
   else
     path = a.args
   end
-  local data = { curpos = vim_fn.getpos("."), matches = vim_fn.getmatches(), config = M.config }
+  local data = { curpos = vim_api.nvim_win_get_cursor(0), matches = vim_fn.getmatches(), config = M.config }
   -- the json string will be written to the frist line
   pcall(vim_fn.writefile, { vim.json.encode(data) }, path, "")
 end
@@ -474,7 +474,7 @@ M.cmd.Load = function(a)
   if not ok then return end
 
   if ret.curpos ~= nil then
-    vim_fn.setpos(".", ret.curpos)
+    vim_api.nvim_win_set_cursor(0, ret.curpos)
   end
   if ret.matches ~= nil then
     vim_fn.setmatches(ret.matches)
@@ -502,7 +502,7 @@ M.cmd.JumpToNextUnaligned = function()
       for j, line2 in vim.iter(ipairs(chunk_lines)):skip(i) do
         local weight2 = M.config.language_weight[tostring(j)]
         if vim_fn.strcharlen(line1) * weight1 - vim_fn.strcharlen(line2) * weight2 > 0 then
-          vim_fn.cursor(l, 1)
+          vim_api.nvim_win_set_cursor(0, { l, 1 })
           vim_api.nvim_feedkeys("zz", "n", true)
           return
         end

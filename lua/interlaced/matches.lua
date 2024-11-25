@@ -152,7 +152,7 @@ M.cmd.ListMatches = function()
     local display_lines = {}
     local display_patterns = {}
     local num_length = tostring(#M._matches):len()
-    local group_length = vim_fn.max(vim.tbl_map(function(t) return t.group:len() end, M._matches))
+    local group_length = math.max(unpack(vim.tbl_map(function(t) return t.group:len() end, M._matches)))
     for i, m in ipairs(M._matches) do
       if not vim.list_contains(display_patterns, m.pattern) then
         table.insert(display_lines,
@@ -205,7 +205,7 @@ M.cmd.ListMatches = function()
     -- allow edit temporarily
     vim.bo[bufnr].modifiable = true
     -- delete cursorline, be it valid or not
-    vim_fn.deletebufline(bufnr, lineno, lineno)
+    vim_api.nvim_buf_set_lines(bufnr, lineno - 1, lineno, true, {}) -- nvim_buf_set_lines is zero-based, end-exclusive
     vim.bo[bufnr].modifiable = false
   end
 
@@ -225,8 +225,7 @@ M.cmd.ListMatches = function()
   end
 
   local function change_match()
-    local lineno = vim_fn.line(".")
-    local line = vim_fn.getline(lineno)
+    local line = vim_api.nvim_get_current_line()
     -- {group name} does allow whitespace (:h group-name), use \S is OK
     local orig_color = line:match([[^%s*%d+%.%s*(%S+)]])
     local orig_pattern = line:match([[^%s*%d+%.%s*%S+%s*(.*)%s*$]])
