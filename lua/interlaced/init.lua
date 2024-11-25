@@ -485,6 +485,32 @@ M.cmd.Load = function(a)
   end
 end
 
+---@param s string
+---@param pat string vim pattern
+---@return integer
+_H.match_count = function(s, pat)
+  local count = 1
+  -- :h match()
+  while vim.fn.match(s, pat, 0, count) ~= -1 do
+    count = count + 1
+  end
+  return count - 1
+end
+
+---@param line string
+---@return table<string, integer>
+_H.group_count = function(line)
+  local ret = {}
+  local count = nil
+  for _, m in ipairs(mt._matches) do
+    count = _H.match_count(line, m.pattern)
+    if count > 0 then
+      ret[m.group] = count
+    end
+  end
+  return ret
+end
+
 M.cmd.JumpToNextUnaligned = function()
   local buf = vim_api.nvim_get_current_buf()
   local lineno = vim_fn.line(".")
@@ -492,16 +518,34 @@ M.cmd.JumpToNextUnaligned = function()
   while lineno % (M.config.lang_num + 1) ~= 1 do lineno = lineno + 1 end
   local lastline = vim_fn.line("$")
 
+  local chunk_lines = nil
+  local weight1, weight2 = nil, nil
+  local group_count1, group_count2 = nil, nil
   for l = lineno, lastline, (M.config.lang_num + 1) do
-    local chunk_lines = vim_api.nvim_buf_get_lines(buf, l - 1, l - 1 + M.config.lang_num, true)
+    chunk_lines = vim_api.nvim_buf_get_lines(buf, l - 1, l - 1 + M.config.lang_num, true)
     -- Note: `vim.iter()` scans table input to decide if it is a list or a dict; to
     -- avoid this cost you can wrap the table with an iterator e.g.
     -- `vim.iter(ipairs({…}))`
     for i, line1 in vim.iter(ipairs(chunk_lines)) do
-      local weight1 = M.config.language_weight[tostring(i)]
+      weight1 = M.config.language_weight[tostring(i)]
+      group_count1 = _H.group_count(line1)
       for j, line2 in vim.iter(ipairs(chunk_lines)):skip(i) do
-        local weight2 = M.config.language_weight[tostring(j)]
-        if vim_fn.strcharlen(line1) * weight1 - vim_fn.strcharlen(line2) * weight2 > 0 then
+        weight2 = M.config.language_weight[tostring(j)]
+        group_count2 = _H.group_count(line2)
+
+        if vim.tbl_count(group_count1) ~= vim.tbl_count(group_count2) then
+          vim_api.nvim_win_set_cursor(0, { l, 1 })
+          vim_api.nvim_feedkeys("zz", "n", true)
+          return
+        end
+        for k1, _ in pairs(group_count1) do
+          if group_count2[k1] == nil then
+            vim_api.nvim_win_set_cursor(0, { l, 1 })
+            vim_api.nvim_feedkeys("zz", "n", true)
+            return
+          end
+        end
+        if (vim_fn.strcharlen(line1) * weight1 - vim_fn.strcharlen(line2) * weight2 > 0) then
           vim_api.nvim_win_set_cursor(0, { l, 1 })
           vim_api.nvim_feedkeys("zz", "n", true)
           return
