@@ -144,6 +144,7 @@ M.cmd.ListMatches = function()
   local sort_options_n = #sort_options
   local sort = 0
   local function cycle_sort()
+    if next(M._matches) == nil then return end
     -- cycle to the next sort method, thus sort + 1
     sort = (sort % sort_options_n) + 1
     -- lua table is 1-based, thus +1
