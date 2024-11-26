@@ -50,7 +50,7 @@ _H.delete_trailing_empty_lines = function()
   end
 end
 
-M.cmd.MapInterlaced = function()
+M.cmd.EnableKeybindings = function()
   if M._is_mappings_on then
     logger.warning("Keybindings already on, nothing to do")
     return
@@ -63,7 +63,7 @@ M.cmd.MapInterlaced = function()
   M._is_mappings_on = true
 end
 
-M.cmd.UnmapInterlaced = function()
+M.cmd.DisableKeybindings = function()
   if not M._is_mappings_on then
     logger.warning("Keybindings already off, nothing to do")
     return
@@ -328,7 +328,7 @@ _H.InterlaceWithL = function(params, is_curbuf_L1)
   vim_fn.writefile(lines, interlaced_path)
   vim_cmd("edit " .. interlaced_path)
   if not M._is_mappings_on then
-    M.cmd.MapInterlaced()
+    M.cmd.EnableKeybindings()
   end
 end
 
@@ -511,7 +511,7 @@ _H.group_count = function(line)
   return ret
 end
 
-M.cmd.JumpToNextUnaligned = function()
+M.cmd.JumpUnaligned = function()
   local buf = vim_api.nvim_get_current_buf()
   local lineno = vim_fn.line(".")
   -- locate first line of the nearest chunk below and start search from there
@@ -579,7 +579,7 @@ M.setup = function(opts)
   M.config = vim.tbl_deep_extend("force", config, opts)
 
   if M.config.setup_mappings_now then
-    M.cmd.MapInterlaced()
+    M.cmd.EnableKeybindings()
   end
 
   -- create commands
@@ -590,7 +590,7 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "InterlaceWithL1", M.cmd.InterlaceWithL1, { complete = "file", nargs = 1 })
   create_command(M.config.cmd_prefix .. "InterlaceWithL2", M.cmd.InterlaceWithL2, { complete = "file", nargs = 1 })
   create_command(M.config.cmd_prefix .. "Load", M.cmd.Load, { complete = "file", nargs = "?" })
-  create_command(M.config.cmd_prefix .. "MapInterlaced", M.cmd.MapInterlaced, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "EnableKeybindings", M.cmd.EnableKeybindings, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "NavigateDown", M.cmd.NavigateDown, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "NavigateUp", M.cmd.NavigateUp, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "PullUp", M.cmd.PullUp, { nargs = 0 })
@@ -604,8 +604,8 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "SetWeight", M.cmd.SetWeight, { nargs = "*" })
   create_command(M.config.cmd_prefix .. "SplitChineseSentences", M.cmd.SplitChineseSentences, { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "SplitEnglishSentences", M.cmd.SplitEnglishSentences, { nargs = 0, range = "%" })
-  create_command(M.config.cmd_prefix .. "UnmapInterlaced", M.cmd.UnmapInterlaced, { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "JumpToNextUnaligned", M.cmd.JumpToNextUnaligned, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "DisableKeybindings", M.cmd.DisableKeybindings, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "JumpUnaligned", M.cmd.JumpUnaligned, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "ClearMatches", mt.cmd.ClearMatches, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "ListHighlights", mt.cmd.ListHighlights, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "ListMatches", mt.cmd.ListMatches, { nargs = 0 })
