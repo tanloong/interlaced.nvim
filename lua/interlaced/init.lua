@@ -454,9 +454,15 @@ M.cmd.Dump = function(a)
   else
     path = a.args
   end
-  local data = { curpos = vim_api.nvim_win_get_cursor(0), matches = vim_fn.getmatches(),
-    config = { language_separator = M.config.language_separator, language_weight = M.config.language_weight,
-      lang_num = M.config.lang_num }, }
+  local data = {
+    curpos = vim_api.nvim_win_get_cursor(0),
+    matches = vim_fn.getmatches(),
+    config = {
+      language_separator = M.config.language_separator,
+      language_weight = M.config.language_weight,
+      lang_num = M.config.lang_num
+    },
+  }
   -- the json string will be written to the frist line
   pcall(vim_fn.writefile, { vim.json.encode(data) }, path, "")
 end
@@ -515,23 +521,25 @@ _H.group_count = function(line)
   return ret
 end
 
----Search the first unaligned chunk below current chunk and place the cursor on its first line.
-M.cmd.JumpUnaligned = function()
+---Search the first unaligned chunk below/above current chunk and place the cursor on
+---its first line.
+---@param direction `1`|`-1`
+_H.locate_unaligned = function(direction)
   local buf = vim_api.nvim_get_current_buf()
-  -- Add (lang_num + 1) to start searching from the next chunk. This prevents
-  -- the cursor from remaining on the same unaligned chunk if the function is
-  -- called multiple times. If a search returns a false positive and places the
-  -- cursor on an aligned chunk, calling this function again allows the cursor
-  -- to move forward instead of staying.
-  local lineno = vim_fn.line(".") + (M.config.lang_num + 1)
-  -- locate first line of the nearest chunk below and start search from there
-  while lineno % (M.config.lang_num + 1) ~= 1 do lineno = lineno + 1 end
-  local lastline = vim_fn.line("$")
+  -- Add `direction * (lang_num + 1)` to start searching from the next chunk.
+  -- This prevents the cursor from remaining on the same unaligned chunk if the
+  -- function is called multiple times. If a search returns a false positive
+  -- and places the cursor on an aligned chunk, calling this function again
+  -- allows the cursor to move forward instead of staying.
+  local lineno = vim_fn.line(".") + direction * (M.config.lang_num + 1)
+  -- locate first line of the nearest chunk below/above and start search from there
+  while lineno % (M.config.lang_num + 1) ~= 1 do lineno = lineno + direction end
+  local lastline = direction == 1 and vim_fn.line("$") or 1
 
   local chunk_lines = nil
   -- local weight1, weight2 = nil, nil
   local group_count1, group_count2 = nil, nil
-  for l = lineno, lastline, (M.config.lang_num + 1) do
+  for l = lineno, lastline, direction * (M.config.lang_num + 1) do
     chunk_lines = vim_api.nvim_buf_get_lines(buf, l - 1, l - 1 + M.config.lang_num, true)
     -- Note: `vim.iter()` scans table input to decide if it is a list or a dict; to
     -- avoid this cost you can wrap the table with an iterator e.g.
@@ -565,6 +573,14 @@ M.cmd.JumpUnaligned = function()
   end
 
   vim.print("Not Found")
+end
+
+M.cmd.NextUnaligned = function()
+  _H.locate_unaligned(1)
+end
+
+M.cmd.PrevUnaligned = function()
+  _H.locate_unaligned(-1)
 end
 
 ---@param shortcut string
@@ -611,7 +627,8 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "SplitChineseSentences", M.cmd.SplitChineseSentences, { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "SplitEnglishSentences", M.cmd.SplitEnglishSentences, { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "DisableKeybindings", M.cmd.DisableKeybindings, { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "JumpUnaligned", M.cmd.JumpUnaligned, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "NextUnaligned", M.cmd.NextUnaligned, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "PrevUnaligned", M.cmd.PrevUnaligned, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "ClearMatches", mt.cmd.ClearMatches, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "ListHighlights", mt.cmd.ListHighlights, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "ListMatches", mt.cmd.ListMatches, { nargs = 0 })
