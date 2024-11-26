@@ -239,6 +239,8 @@ M.cmd.ListMatches = function()
     local orig_color = line:match([[^%s*%d+%.%s*(%S+)]])
     local orig_pattern = line:match([[^%s*%d+%.%s*%S+%s*(.*)%s*$]])
 
+    new_pattern = vim_fn.input({ default = orig_pattern, prompt = "Pattern: ", cancelreturn = vim.NIL })
+    if new_pattern == vim.NIL then return end
     new_color = vim_fn.input({
       default = orig_color,
       prompt = "Highlight group: ",
@@ -246,8 +248,6 @@ M.cmd.ListMatches = function()
       cancelreturn = vim.NIL
     })
     if new_color == vim.NIL then return end
-    new_pattern = vim_fn.input({ default = orig_pattern, prompt = "Pattern: ", cancelreturn = vim.NIL })
-    if new_pattern == vim.NIL then return end
 
     local id = _H.matchdelete(orig_pattern, origwin)
     _H.matchadd(new_color, new_pattern, origwin, id)
@@ -294,6 +294,10 @@ M.cmd.MatchAddVisual = function()
 end
 
 M.cmd.MatchAdd = function()
+  -- consider user's input as a regex pattern and does not escape special chars in the pattern
+  local pattern = vim_fn.input({ prompt = "Pattern: ", cancelreturn = vim.NIL })
+  if pattern == vim.NIL then return end
+
   local listwin = M.cmd.ListMatches()
   _H.cmap_remote_listwin(true, listwin)
   vim.cmd.redraw() -- let the ListMatches split window display
@@ -307,10 +311,6 @@ M.cmd.MatchAdd = function()
   _H.cmap_remote_listwin(false, listwin)
 
   if color == vim.NIL then return end
-
-  -- consider user's input as a regex pattern and does not escape special chars in the pattern
-  local pattern = vim_fn.input({ prompt = "Pattern: ", cancelreturn = vim.NIL })
-  if pattern == vim.NIL then return end
 
   -- should be AFTER the listwin is closed to ensure the matchadd is applied to the work window
   _H.matchadd(color, pattern)
