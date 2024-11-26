@@ -12,7 +12,7 @@ local M = {
   ---@type boolean
   is_hl_matches = true,
   ---@type { id: integer, group: string, pattern: string, priority: integer}[]
-  _matches = {},
+  _matches = vim_fn.getmatches(),
   ---@type string?
   last_color = nil,
   colors = require("interlaced.colors"),

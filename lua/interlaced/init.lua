@@ -513,9 +513,15 @@ _H.group_count = function(line)
   return ret
 end
 
+---Search the first unaligned chunk below current chunk and place the cursor on its first line.
 M.cmd.JumpUnaligned = function()
   local buf = vim_api.nvim_get_current_buf()
-  local lineno = vim_fn.line(".")
+  -- Add (lang_num + 1) to start searching from the next chunk. This prevents
+  -- the cursor from remaining on the same unaligned chunk if the function is
+  -- called multiple times. If a search returns a false positive and places the
+  -- cursor on an aligned chunk, calling this function again allows the cursor
+  -- to move forward instead of staying.
+  local lineno = vim_fn.line(".") + (M.config.lang_num + 1)
   -- locate first line of the nearest chunk below and start search from there
   while lineno % (M.config.lang_num + 1) ~= 1 do lineno = lineno + 1 end
   local lastline = vim_fn.line("$")
@@ -536,8 +542,6 @@ M.cmd.JumpUnaligned = function()
         group_count2 = _H.group_count(line2)
 
         if vim.tbl_count(group_count1) ~= vim.tbl_count(group_count2) then
-            vim.print(group_count1)
-            vim.print(group_count2)
           vim_api.nvim_win_set_cursor(0, { l, 1 })
           vim_api.nvim_feedkeys("zz", "n", true)
           return
@@ -546,8 +550,6 @@ M.cmd.JumpUnaligned = function()
           if group_count2[k1] == nil then
             vim_api.nvim_win_set_cursor(0, { l, 1 })
             vim_api.nvim_feedkeys("zz", "n", true)
-            vim.print(group_count1)
-            vim.print(group_count2)
             return
           end
         end
