@@ -519,7 +519,7 @@ M.cmd.JumpToNextUnaligned = function()
   local lastline = vim_fn.line("$")
 
   local chunk_lines = nil
-  local weight1, weight2 = nil, nil
+  -- local weight1, weight2 = nil, nil
   local group_count1, group_count2 = nil, nil
   for l = lineno, lastline, (M.config.lang_num + 1) do
     chunk_lines = vim_api.nvim_buf_get_lines(buf, l - 1, l - 1 + M.config.lang_num, true)
@@ -527,13 +527,15 @@ M.cmd.JumpToNextUnaligned = function()
     -- avoid this cost you can wrap the table with an iterator e.g.
     -- `vim.iter(ipairs({…}))`
     for i, line1 in vim.iter(ipairs(chunk_lines)) do
-      weight1 = M.config.language_weight[tostring(i)]
+      -- weight1 = M.config.language_weight[tostring(i)]
       group_count1 = _H.group_count(line1)
-      for j, line2 in vim.iter(ipairs(chunk_lines)):skip(i) do
-        weight2 = M.config.language_weight[tostring(j)]
+      for _, line2 in vim.iter(ipairs(chunk_lines)):skip(i) do
+        -- weight2 = M.config.language_weight[tostring(j)]
         group_count2 = _H.group_count(line2)
 
         if vim.tbl_count(group_count1) ~= vim.tbl_count(group_count2) then
+            vim.print(group_count1)
+            vim.print(group_count2)
           vim_api.nvim_win_set_cursor(0, { l, 1 })
           vim_api.nvim_feedkeys("zz", "n", true)
           return
@@ -542,14 +544,16 @@ M.cmd.JumpToNextUnaligned = function()
           if group_count2[k1] == nil then
             vim_api.nvim_win_set_cursor(0, { l, 1 })
             vim_api.nvim_feedkeys("zz", "n", true)
+            vim.print(group_count1)
+            vim.print(group_count2)
             return
           end
         end
-        if (vim_fn.strcharlen(line1) * weight1 - vim_fn.strcharlen(line2) * weight2 > 0) then
-          vim_api.nvim_win_set_cursor(0, { l, 1 })
-          vim_api.nvim_feedkeys("zz", "n", true)
-          return
-        end
+        -- if (vim_fn.strcharlen(line1) * weight1 - vim_fn.strcharlen(line2) * weight2 > 0) then
+        --   vim_api.nvim_win_set_cursor(0, { l, 1 })
+        --   vim_api.nvim_feedkeys("zz", "n", true)
+        --   return
+        -- end
       end
     end
   end
