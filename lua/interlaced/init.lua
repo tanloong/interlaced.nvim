@@ -51,6 +51,7 @@ _H.delete_trailing_empty_lines = function()
 end
 
 M.cmd.EnableKeybindings = function()
+  if type(M.config.enable_keybindings_hook) == "function" then M.config.enable_keybindings_hook() end
   if M._is_mappings_on then
     logger.warning("Keybindings already on, nothing to do")
     return
@@ -64,6 +65,7 @@ M.cmd.EnableKeybindings = function()
 end
 
 M.cmd.DisableKeybindings = function()
+  if type(M.config.disable_keybindings_hook) == "function" then M.config.disable_keybindings_hook() end
   if not M._is_mappings_on then
     logger.warning("Keybindings already off, nothing to do")
     return

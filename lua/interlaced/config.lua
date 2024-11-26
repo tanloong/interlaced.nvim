@@ -18,6 +18,8 @@ local config = {
   auto_save = true,
   cmd_prefix = "It",
   lang_num = 2,
+  enable_keybindings_hook = nil,
+  disable_keybindings_hook = nil,
 }
 
 return config
