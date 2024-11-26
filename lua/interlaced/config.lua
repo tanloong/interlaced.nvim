@@ -18,7 +18,9 @@ local config = {
   auto_save = true,
   cmd_prefix = "It",
   lang_num = 2,
+  ---@type function|nil
   enable_keybindings_hook = nil,
+  ---@type function|nil
   disable_keybindings_hook = nil,
 }
 

@@ -454,7 +454,9 @@ M.cmd.Dump = function(a)
   else
     path = a.args
   end
-  local data = { curpos = vim_api.nvim_win_get_cursor(0), matches = vim_fn.getmatches(), config = M.config }
+  local data = { curpos = vim_api.nvim_win_get_cursor(0), matches = vim_fn.getmatches(),
+    config = { language_separator = M.config.language_separator, language_weight = M.config.language_weight,
+      lang_num = M.config.lang_num }, }
   -- the json string will be written to the frist line
   pcall(vim_fn.writefile, { vim.json.encode(data) }, path, "")
 end
