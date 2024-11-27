@@ -11,6 +11,7 @@ local create_command = vim_api.nvim_create_user_command
 
 local config = require("interlaced.config")
 local mt = require("interlaced.matches")
+local utils = require("interlaced.utils")
 
 -- NOTE: Develop test mode !!
 require("interlaced.test")
@@ -488,7 +489,7 @@ M.cmd.Load = function(a)
   end
   if ret.matches ~= nil then
     vim_fn.setmatches(ret.matches)
-    mt._matches = ret.matches
+    mt._matches = utils.match_list2dict(ret.matches)
   end
   if ret.config ~= nil then
     M.config = vim.tbl_deep_extend("force", M.config, ret.config)
@@ -512,10 +513,10 @@ end
 _H.group_count = function(line)
   local ret = {}
   local count = nil
-  for _, m in ipairs(mt._matches) do
-    count = _H.match_count(line, m.pattern)
+  for pat, id_grp_prio in pairs(mt._matches) do
+    count = _H.match_count(line, pat)
     if count > 0 then
-      ret[m.group] = count
+      ret[id_grp_prio.group] = count
     end
   end
   return ret

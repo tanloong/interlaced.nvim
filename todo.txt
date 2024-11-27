@@ -2,6 +2,8 @@ related efforts:
   https://github.com/azabiong/vim-highlighter/blob/main/autoload/highlighter.vim
   https://github.com/inkarkat/vim-mark
 
+change_match不要通过input()让用户先输pattern再输group，应该像cmdwin一样允许用户在listwin里编辑某一行，
+
 让ListMatches窗口像command-line window一样显示在下方，高度为5 (vim应该有一个全局变量来定义默认高度，找到它)，当光标focus到其它窗口时自动关闭ListMatches窗口，不要map q键来关闭。当用户在:ItMatchAdd的highlight group或pattern提示命令行中按下<c-f>时打开ListMatches窗口，不要在:ItMatchAdd运行时立刻自动打开。用户在ListMatches窗口可以编辑matches(没错，ListMatches需要modifieable)，按下Enter时执行光标所在行的match，按下<c-c>回到command-line，按下:q退出。
   nnoremap qm 打开ListMatches窗口
   :h command-line window

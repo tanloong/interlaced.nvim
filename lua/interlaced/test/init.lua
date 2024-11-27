@@ -4,7 +4,7 @@ local pkg_name = "interlaced"
 
 local function dev_reload()
   for k, _ in pairs(package.loaded) do
-    if k:match(pkg_name) then
+    if k:sub(1, #pkg_name) == pkg_name then
       package.loaded[k] = nil
     end
   end
