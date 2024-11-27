@@ -160,13 +160,13 @@ M.cmd.ListMatches = function()
     table.sort(M._matches, sort_options[sort])
     local display_lines = {}
     local display_patterns = {}
-    local num_length = tostring(#M._matches):len()
+    local id_length = math.max(unpack(vim.tbl_map(function(t) return t.id:len() end, M._matches)))
     local group_length = math.max(unpack(vim.tbl_map(function(t) return t.group:len() end, M._matches)))
     for i, m in ipairs(M._matches) do
       if not vim.list_contains(display_patterns, m.pattern) then
         table.insert(display_lines,
           string.format(
-            "%" .. num_length .. "d. " ..
+            "%" .. id_length .. "d " ..
             "%-" .. group_length .. "s " ..
             "%s",
             i,
@@ -236,8 +236,8 @@ M.cmd.ListMatches = function()
   local function change_match()
     local line = vim_api.nvim_get_current_line()
     -- {group name} does allow whitespace (:h group-name), use \S is OK
-    local orig_color = line:match([[^%s*%d+%.%s*(%S+)]])
-    local orig_pattern = line:match([[^%s*%d+%.%s*%S+%s*(.*)%s*$]])
+    local orig_color = line:match([[^%s*%d+%s*(%S+)]])
+    local orig_pattern = line:match([[^%s*%d+%s*%S+%s*(.*)%s*$]])
 
     new_pattern = vim_fn.input({ default = orig_pattern, prompt = "Pattern: ", cancelreturn = vim.NIL })
     if new_pattern == vim.NIL then return end
