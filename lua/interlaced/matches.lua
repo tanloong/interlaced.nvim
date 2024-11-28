@@ -245,7 +245,7 @@ M.cmd.ListMatches = function()
 
   for _, entry in ipairs({
     { "n",          "D",       delete_match,  "Delete match(es) of the pattern on cursor line" },
-    { "n",          "u",       restore_match, "Restore the last deleted match" },
+    { "n",          "U",       restore_match, "Restore the last deleted match" },
     { "n",          "s",       cycle_sort,    "cycle through sort methods (1. pattern, 2. color, 3. insertion order)" },
     { { "n", "i" }, "<enter>", change_match,  "modify the pattern or color of the match under the cursor" },
   }) do

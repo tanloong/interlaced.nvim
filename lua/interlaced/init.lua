@@ -83,10 +83,13 @@ M.cmd.DisableKeybindings = function()
   M._is_mappings_on = false
 end
 
-M.cmd.PushUp = function()
-  local lineno = vim_fn.line(".")
+M.cmd.PushUp = function(lineno)
+  lineno = lineno or vim_fn.line(".")
   if lineno <= (M.config.lang_num + 1) then
     logger.warning("Pushing too early, please move down your cursor.")
+    return
+  end
+  if lineno % (M.config.lang_num + 1) == 0 then
     return
   end
 
@@ -108,42 +111,39 @@ end
 
 M.cmd.PushUpPair = function()
   local here = vim_api.nvim_win_get_cursor(0)
-  vim_cmd([[normal! {]])
-  for _ = 1, 2 do
-    vim_fn.setcursorcharpos(vim_fn.line(".") + 1, 1)
-    M.cmd.PushUp()
+
+  local lineno = here[1]
+  while lineno % (M.config.lang_num + 1) ~= 0 do
+    lineno = lineno - 1
   end
+
+  for offset = 1, M.config.lang_num do
+    M.cmd.PushUp(lineno + offset)
+  end
+
   vim_api.nvim_win_set_cursor(0, here)
 end
 
-M.cmd.PullUp = function()
+M.cmd.PullBelow = function(lineno)
   local here = vim_api.nvim_win_get_cursor(0)
-  local curr_lineno = here[1]
-  local last_lineno = vim_fn.line("$")
-  if last_lineno - curr_lineno < (M.config.lang_num + 1) then
-    logger.warning("No more lines can be pulled up.")
-    return
-  end
+  lineno = lineno or here[1]
 
-  vim_fn.setcursorcharpos(curr_lineno + (M.config.lang_num + 1), 1)
-  M.cmd.PushUp()
+  M.cmd.PushUp(lineno + M.config.lang_num + 1)
   vim_api.nvim_win_set_cursor(0, here)
 end
 
-M.cmd.PullUpPair = function()
+M.cmd.PullBelowPair = function()
   local here = vim_api.nvim_win_get_cursor(0)
-  local curr_lineno = here[1]
-  local last_lineno = vim_fn.line("$")
-  if last_lineno - curr_lineno < (M.config.lang_num + 1) + 1 then
-    logger.warning("No more lines can be pulled up.")
-    return
+  local lineno = here[1]
+
+  while lineno % (M.config.lang_num + 1) ~= 0 do
+    lineno = lineno + 1
   end
 
-  vim_cmd([[normal! }]])
-  for _ = 1, 2 do
-    vim_fn.setcursorcharpos(vim_fn.line(".") + 1, 1)
-    M.cmd.PushUp()
+  for offset = 1, M.config.lang_num do
+    M.cmd.PushUp(lineno + offset)
   end
+
   vim_api.nvim_win_set_cursor(0, here)
 end
 
@@ -151,7 +151,7 @@ M.cmd.PushDownRightPart = function()
   local lineno = vim_fn.line(".")
   local last_lineno = vim_fn.line("$")
 
-  vim_fn.append(last_lineno, { "", "", "" })
+  vim.api.nvim_buf_set_lines(0, -1, -1, false, {"", "", ""})
 
   local last_counterpart_lineno = last_lineno
   while (last_counterpart_lineno - lineno) % (M.config.lang_num + 1) ~= 0 do
@@ -616,8 +616,8 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "EnableKeybindings", M.cmd.EnableKeybindings, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "NavigateDown", M.cmd.NavigateDown, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "NavigateUp", M.cmd.NavigateUp, { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "PullUp", M.cmd.PullUp, { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "PullUpPair", M.cmd.PullUpPair, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "PullBelow", M.cmd.PullBelow, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "PullBelowPair", M.cmd.PullBelowPair, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "PushDown", M.cmd.PushDown, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "PushDownRightPart", M.cmd.PushDownRightPart, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "PushUp", M.cmd.PushUp, { nargs = 0 })
