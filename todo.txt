@@ -2,6 +2,8 @@ related efforts:
   https://github.com/azabiong/vim-highlighter/blob/main/autoload/highlighter.vim
   https://github.com/inkarkat/vim-mark
 
+用户在setup({})里设置的mapping如何指定不要对某个函数进行映射，自定义mapping字典和默认字典合并之后，如果自定义字典里有些key没有写，合并结果会怎么样，如果写了但写的值是nil又会怎么样
+
 在matches window按Enter之后立刻关闭窗口，刷新的match不管是覆盖还是新增都显示到窗口最底部
 
 matches._deleted_matches应该设置一个最大长度(vim的默认undolevels是1000)，超过的就丢弃掉

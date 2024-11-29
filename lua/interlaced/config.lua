@@ -1,13 +1,19 @@
 local config = {
   mappings = {
-    PushUp = ",",
-    PushUpPair = "<",
-    PullBelow = ".",
-    PullBelowPair = ">",
-    PushDownRightPart = "d",
-    PushDown = "D",
-    NavigateDown = "J",
-    NavigateUp = "K"
+    [","] = require("interlaced.reposition").cmd.PushUp,
+    ["<"] = require("interlaced.reposition").cmd.PushUpPair,
+    ["."] = require("interlaced.reposition").cmd.PullBelow,
+    [">"] = require("interlaced.reposition").cmd.PullBelowPair,
+    ["d"] = require("interlaced.reposition").cmd.PushDownRightPart,
+    ["D"] = require("interlaced.reposition").cmd.PushDown,
+    ["J"] = require("interlaced.reposition").cmd.NavigateDown,
+    ["K"] = require("interlaced.reposition").cmd.NavigateUp,
+    ["md"] = require("interlaced.reposition").cmd.Dump,
+    ["ml"] = require("interlaced.reposition").cmd.Load,
+    ["gn"] = require("interlaced.reposition").cmd.NextUnaligned,
+    ["gN"] = require("interlaced.reposition").cmd.PrevUnaligned,
+    ["mt"] = require("interlaced.match").cmd.MatchToggle,
+    ["m;"] = require("interlaced.match").cmd.ListMatches,
   },
   -- automatically enable mappings for *interlaced.txt files
   setup_mappings_now = (((vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())):find("interlaced%.txt$")) ~= nil),
