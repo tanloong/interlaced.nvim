@@ -151,7 +151,7 @@ M.cmd.PushDownRightPart = function()
   local lineno = vim_fn.line(".")
   local last_lineno = vim_fn.line("$")
 
-  vim.api.nvim_buf_set_lines(0, -1, -1, false, {"", "", ""})
+  vim.api.nvim_buf_set_lines(0, -1, -1, false, { "", "", "" })
 
   local last_counterpart_lineno = last_lineno
   while (last_counterpart_lineno - lineno) % (M.config.lang_num + 1) ~= 0 do
@@ -187,33 +187,6 @@ end
 M.cmd.PushDown = function()
   vim_cmd([[normal! 0]])
   M.cmd.PushDownRightPart()
-end
-
-M.cmd.SetWeight = function(a)
-  -- :ItSetWeight ?
-  -- :ItSetWeight
-  if #a.fargs == 0 or a.args == "?" then
-    for _, l in ipairs(vim_fn.sort(vim.tbl_keys(M.config.language_weight))) do
-      vim.print("L" .. l .. ": " .. M.config.language_weight[l])
-    end
-    return
-  end
-
-  -- :ItSetWeight {int} {number}
-  if #a.fargs ~= 2 then
-    logger.error("Expected 2 arguments, got " .. #a.fargs)
-    return
-  end
-
-  local l = a.fargs[1]
-  local weight = tonumber(a.fargs[2])
-  if weight == nil then
-    logger.error(a.fargs[2] .. " does not look like a number")
-    return
-  end
-
-  M.config.language_weight[tostring(l)] = weight
-  vim.print("L" .. l .. " weight: " .. weight .. "")
 end
 
 M.cmd.SetSeparator = function(a)
@@ -265,10 +238,6 @@ M.cmd.SetLangNum = function(a)
   -- default separator when language number grows
   while #M.config.language_separator < n do
     table.insert(M.config.language_separator, " ")
-  end
-  -- default weight when language number grows
-  while #M.config.language_separator < n do
-    table.insert(M.config.language_weight, 1)
   end
 
   vim.print("Language number: " .. M.config.lang_num)
@@ -458,7 +427,6 @@ M.cmd.Dump = function(a)
     matches = vim_fn.getmatches(),
     config = {
       language_separator = M.config.language_separator,
-      language_weight = M.config.language_weight,
       lang_num = M.config.lang_num
     },
   }
@@ -468,7 +436,7 @@ end
 
 M.cmd.Load = function(a)
   local path = nil
-  if #a.args == 0 then
+  if a.args == nil or #a.args == 0 then
     path = vim.fs.joinpath(vim_fn.expand("%:h"), ".interlaced.json")
   else
     path = a.args
@@ -536,18 +504,15 @@ _H.locate_unaligned = function(direction)
   local lastline = direction == 1 and vim_fn.line("$") or 1
 
   local chunk_lines = nil
-  -- local weight1, weight2 = nil, nil
   local group_count1, group_count2 = nil, nil
   for l = lineno, lastline, direction * (M.config.lang_num + 1) do
     chunk_lines = vim_api.nvim_buf_get_lines(buf, l - 1, l - 1 + M.config.lang_num, true)
-    -- Note: `vim.iter()` scans table input to decide if it is a list or a dict; to
-    -- avoid this cost you can wrap the table with an iterator e.g.
-    -- `vim.iter(ipairs({…}))`
-    for i, line1 in vim.iter(ipairs(chunk_lines)) do
-      -- weight1 = M.config.language_weight[tostring(i)]
+    for i, line1 in ipairs(chunk_lines) do
       group_count1 = _H.group_count(line1)
+      -- Note: `vim.iter()` scans table input to decide if it is a list or a dict; to
+      -- avoid this cost you can wrap the table with an iterator e.g.
+      -- `vim.iter(ipairs({…}))`
       for _, line2 in vim.iter(ipairs(chunk_lines)):skip(i) do
-        -- weight2 = M.config.language_weight[tostring(j)]
         group_count2 = _H.group_count(line2)
 
         if vim.tbl_count(group_count1) ~= vim.tbl_count(group_count2) then
@@ -562,11 +527,6 @@ _H.locate_unaligned = function(direction)
             return
           end
         end
-        -- if (vim_fn.strcharlen(line1) * weight1 - vim_fn.strcharlen(line2) * weight2 > 0) then
-        --   vim_api.nvim_win_set_cursor(0, { l, 1 })
-        --   vim_api.nvim_feedkeys("zz", "n", true)
-        --   return
-        -- end
       end
     end
   end
@@ -622,7 +582,6 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "PushUpPair", M.cmd.PushUpPair, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "SetLangNum", M.cmd.SetLangNum, { nargs = "?" })
   create_command(M.config.cmd_prefix .. "SetSeparator", M.cmd.SetSeparator, { nargs = "*" })
-  create_command(M.config.cmd_prefix .. "SetWeight", M.cmd.SetWeight, { nargs = "*" })
   create_command(M.config.cmd_prefix .. "SplitChineseSentences", M.cmd.SplitChineseSentences, { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "SplitEnglishSentences", M.cmd.SplitEnglishSentences, { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "DisableKeybindings", M.cmd.DisableKeybindings, { nargs = 0 })
