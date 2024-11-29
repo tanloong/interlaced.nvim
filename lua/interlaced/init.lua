@@ -387,14 +387,12 @@ end
 ---@return nil
 _H.SplitHelper = function(regex, a)
   -- cmd([[saveas! %.splitted]])
-  local buf = vim_api.nvim_get_current_buf()
   for i = a.line2, a.line1, -1 do
     line = getline(i)
     local sents = vim_fn.split(line, regex)
 
     if #sents > 1 then
-      vim_fn.deletebufline(buf, i)
-      vim_fn.append(i - 1, sents)
+      vim_api.nvim_buf_set_lines(0, i - 1, i, true, sents)
     end
   end
   if M.config.auto_save then
