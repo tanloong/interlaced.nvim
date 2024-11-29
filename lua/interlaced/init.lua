@@ -1,12 +1,12 @@
 #!/usr/bin/env lua
 
 local keyset = vim.keymap.set
-local setline = vim.fn.setline
-local getline = vim.fn.getline
 local vim_fn = vim.fn
 local vim_api = vim.api
 local vim_cmd = vim.cmd
 local vim_uv = vim.uv or vim.loop
+local nvim_buf_set_lines = vim_api.nvim_buf_set_lines
+local nvim_buf_get_lines = vim_api.nvim_buf_get_lines
 local create_command = vim_api.nvim_create_user_command
 
 local config = require("interlaced.config")
@@ -31,23 +31,22 @@ local M = {
   cmd = {},
 }
 
+---@param lineno integer 1-based line number
 _H.append_to_3_lines_above = function(lineno)
   local lineno_target = lineno - (M.config.lang_num + 1)
-  local line = getline(lineno)
-  local line_target = getline(lineno_target)
+  local line = nvim_buf_get_lines(0, lineno - 1, lineno, true)[1]
+  local line_target = nvim_buf_get_lines(0, lineno_target - 1, lineno_target, true)[1]
 
   local languid = tostring(lineno % (M.config.lang_num + 1))
   local sep = M.config.language_separator[languid]
-  setline(lineno_target, line_target:gsub("%s+$", "") .. sep .. line)
-  setline(lineno, "")
+  nvim_buf_set_lines(0, lineno_target - 1, lineno_target, true, { line_target:gsub("%s+$", "") .. sep .. line })
+  nvim_buf_set_lines(0, lineno - 1, lineno, true, { "" })
 end
 
 _H.delete_trailing_empty_lines = function()
-  local last_lineno = vim_fn.line("$")
-  local buf = vim_api.nvim_get_current_buf()
-  while getline(last_lineno):match("^%s*$") do
-    vim_fn.deletebufline(buf, last_lineno)
-    last_lineno = last_lineno - 1
+  -- nvim_buf_get_lines(0, -2, -1, true)[1] returns the last line
+  while nvim_buf_get_lines(0, -2, -1, true)[1]:match("^%s*$") do
+    nvim_buf_set_lines(0, -2, -1, true, {})
   end
 end
 
@@ -83,6 +82,7 @@ M.cmd.DisableKeybindings = function()
   M._is_mappings_on = false
 end
 
+---@param lineno integer 1-based line number
 M.cmd.PushUp = function(lineno)
   lineno = lineno or vim_fn.line(".")
   if lineno <= (M.config.lang_num + 1) then
@@ -98,10 +98,11 @@ M.cmd.PushUp = function(lineno)
   lineno = lineno + (M.config.lang_num + 1)
   local last_lineno = vim_fn.line("$")
   while lineno <= last_lineno do
-    setline(lineno - (M.config.lang_num + 1), getline(lineno))
+    nvim_buf_set_lines(0, lineno - (M.config.lang_num + 1) - 1, lineno - (M.config.lang_num + 1), true,
+      nvim_buf_get_lines(0, lineno - 1, lineno, true))
     lineno = lineno + (M.config.lang_num + 1)
   end
-  setline(lineno - (M.config.lang_num + 1), "")
+  nvim_buf_set_lines(0, lineno - (M.config.lang_num + 1) - 1, lineno - (M.config.lang_num + 1), true, { "" })
 
   _H.delete_trailing_empty_lines()
   if M.config.auto_save then
@@ -148,10 +149,10 @@ M.cmd.PullBelowPair = function()
 end
 
 M.cmd.PushDownRightPart = function()
-  local lineno = vim_fn.line(".")
+  local lineno, colno = unpack(vim_api.nvim_win_get_cursor(0))
   local last_lineno = vim_fn.line("$")
 
-  vim.api.nvim_buf_set_lines(0, -1, -1, false, {"", "", ""})
+  vim.api.nvim_buf_set_lines(0, -1, -1, false, { "", "", "" })
 
   local last_counterpart_lineno = last_lineno
   while (last_counterpart_lineno - lineno) % (M.config.lang_num + 1) ~= 0 do
@@ -159,14 +160,14 @@ M.cmd.PushDownRightPart = function()
   end
 
   for i = last_counterpart_lineno, lineno + (M.config.lang_num + 1), -(M.config.lang_num + 1) do
-    setline(i + (M.config.lang_num + 1), getline(i))
+    nvim_buf_set_lines(0, i + M.config.lang_num, i + (M.config.lang_num + 1), true,
+      nvim_buf_get_lines(0, i + M.config.lang_num, i + (M.config.lang_num + 1), true))
   end
 
-  local curr_line = getline(lineno)
-  local cursor_col = vim_fn.col(".")
+  local curr_line = nvim_buf_get_lines(0, lineno - 1, lineno, true)[1]
 
-  local before_cursor = curr_line:sub(1, cursor_col - 1)
-  local after_cursor = curr_line:sub(cursor_col)
+  local before_cursor = curr_line:sub(1, colno - 1)
+  local after_cursor = curr_line:sub(colno)
   before_cursor = before_cursor:gsub([[%s+$]], "", 1)
   after_cursor = after_cursor:gsub([[^%s+]], "", 1)
 
@@ -175,8 +176,8 @@ M.cmd.PushDownRightPart = function()
   before_cursor = vim_fn.substitute(before_cursor, vim_fn.escape(sep, [[\]]) .. [[$]], "", "")
   after_cursor = vim_fn.substitute(after_cursor, [[^]] .. vim_fn.escape(sep, [[\]]), "", "")
 
-  setline(lineno, before_cursor)
-  setline(lineno + (M.config.lang_num + 1), after_cursor)
+  nvim_buf_set_lines(0, lineno - 1, lineno, true, { before_cursor })
+  nvim_buf_set_lines(0, lineno + M.config.lang_num, lineno + (M.config.lang_num + 1), true, { after_cursor })
 
   _H.delete_trailing_empty_lines()
   if M.config.auto_save then
@@ -387,14 +388,12 @@ end
 ---@return nil
 _H.SplitHelper = function(regex, a)
   -- cmd([[saveas! %.splitted]])
-  local buf = vim_api.nvim_get_current_buf()
   for i = a.line2, a.line1, -1 do
-    line = getline(i)
+    line = nvim_buf_get_lines(0, i - 1, i, true)[1]
     local sents = vim_fn.split(line, regex)
 
     if #sents > 1 then
-      vim_fn.deletebufline(buf, i)
-      vim_fn.append(i - 1, sents)
+      nvim_buf_set_lines(0, i - 1, i, true, sents)
     end
   end
   if M.config.auto_save then
