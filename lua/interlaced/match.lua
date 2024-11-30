@@ -248,7 +248,7 @@ M.cmd.ListMatches = function()
     { "n",          "D",       delete_match,  "Delete match(es) of the pattern on cursor line" },
     { "n",          "U",       restore_match, "Restore the last deleted match" },
     { "n",          "s",       cycle_sort,    "cycle through sort methods (1. pattern, 2. color, 3. insertion order)" },
-    { { "n", "i" }, "<enter>", change_match,  "modify the pattern or color of the match under the cursor" },
+    { { "n", "i", "v", "s" }, "<enter>", change_match,  "modify the pattern or color of the match under the cursor" },
   }) do
     local modes, from, to, desc = unpack(entry)
     vim.keymap.set(modes, from, to, { desc = desc, silent = true, buffer = true, nowait = true, noremap = true })
@@ -259,70 +259,17 @@ M.cmd.ListMatches = function()
 end
 
 M.cmd.MatchAddVisual = function()
-  -- obtain pattern first, got error if after the listwin is created, don't know why...
   -- consider user's selectd text as plain text and escape special chars in the pattern; matchadd() by defualt consider the given pattern magic
   local pattern = table.concat(
-    vim.tbl_map(_H.escape_text, vim_fn.getregion(vim_fn.getpos("'<"), vim_fn.getpos("'>"), { type = "v" })), [[\n]])
+    vim.tbl_map(_H.escape_text, vim_fn.getregion(vim_fn.getpos("'<"), vim_fn.getpos("'>"), { type = "v" })), [[\\n]])
 
   local listwin = M.cmd.ListMatches()
-  _H.cmap_remote_listwin(true, listwin)
-  vim.cmd.redraw() -- let the ListMatches split window display
-
-  ---If one pattern is added more than once, the old ones will be discarded. (see _H.matchadd function)
-  local color = vim_fn.input({ prompt = "Highlight group: ", completion = "highlight", cancelreturn = vim.NIL })
-
-  -- should be BEFORE the _H.matchadd to ensure the matchadd is applied to the work window
-  vim_api.nvim_win_close(listwin, true)
-  vim.cmd.redraw() -- let the ListMatches split window disappear
-  _H.cmap_remote_listwin(false, listwin)
-
-  if color == vim.NIL then return end
-  -- should be AFTER the listwin is closed to ensure the matchadd is applied to the work window
-  _H.matchadd(color, pattern)
+  vim_fn.win_execute(listwin, [[call nvim_buf_set_lines(0, -1, -1, 0, ["_ _ ]] .. pattern .. [["]) | exe "normal! G02wv$\<c-g>"]])
 end
 
 M.cmd.MatchAdd = function()
-  -- consider user's input as a regex pattern and does not escape special chars in the pattern
-  local pattern = vim_fn.input({ prompt = "Pattern: ", cancelreturn = vim.NIL })
-  if pattern == vim.NIL then return end
-
   local listwin = M.cmd.ListMatches()
-  _H.cmap_remote_listwin(true, listwin)
-  vim.cmd.redraw() -- let the ListMatches split window display
-
-  ---If one pattern is added more than once, the old ones will be discarded. (see _H.matchadd function)
-  local color = vim_fn.input({ prompt = "Highlight group: ", completion = "highlight", cancelreturn = vim.NIL })
-
-  -- should be BEFORE the _H.matchadd to ensure the matchadd is applied to the work window
-  vim_api.nvim_win_close(listwin, true)
-  vim.cmd.redraw() -- let the ListMatches split window disappear
-  _H.cmap_remote_listwin(false, listwin)
-
-  if color == vim.NIL then return end
-
-  -- should be AFTER the listwin is closed to ensure the matchadd is applied to the work window
-  _H.matchadd(color, pattern)
-end
-
----@param enable boolean
----@param listwin integer
-_H.cmap_remote_listwin = function(enable, listwin)
-  local strokes = { "<c-e>", "<c-y>", "<c-d>", "<c-u>", "<c-f>", "<c-b>" }
-  if enable then
-    for _, stroke in ipairs(strokes) do
-      vim.keymap.set("c", stroke,
-        function()
-          local code = vim.api.nvim_replace_termcodes(stroke, true, false, true)
-          vim_fn.win_execute(listwin, [[normal! ]] .. code)
-          vim.cmd.redraw()
-        end, { silent = true, buffer = true, nowait = true, noremap = true })
-    end
-  else
-    for _, stroke in ipairs(strokes) do
-      -- 会报错不存在对应的map，不知道为什么
-      pcall(vim_api.nvim_del_keymap, "c", stroke)
-    end
-  end
+  vim_fn.win_execute(listwin, [[call nvim_buf_set_lines(0, -1, -1, 0, ["_ _ pattern"]) | exe "normal! G02wv$\<c-g>"]])
 end
 
 return M
