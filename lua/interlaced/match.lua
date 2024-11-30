@@ -87,6 +87,7 @@ _H.matchdelete = function(pattern, winid)
   -- 2. delete from {M._matches}
   M._matches[pattern] = nil
 
+  m.pattern = pattern
   return m
 end
 
