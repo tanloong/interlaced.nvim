@@ -177,46 +177,6 @@ _H.get_timestr = function()
   return timestr .. "." .. stamp
 end
 
----@param params table
----@param is_curbuf_L1 boolean
----@return nil
-_H.InterlaceWithL = function(params, is_curbuf_L1)
-  local filepath = params.args
-  local fh, err = io.open(filepath, "r")
-  if not fh then
-    logger.warning("Failed to open file for reading: " .. filepath .. "\nError: " .. err)
-    return nil
-  end
-  local lines_that = {}
-  for line in fh:lines() do
-    table.insert(lines_that, line)
-  end
-  fh:close()
-  local lines_this = vim_api.nvim_buf_get_lines(0, 0, -1, true)
-  lines_this = vim.tbl_filter(function(s) return s:find("%S") ~= nil end, lines_this)
-  lines_that = vim.tbl_filter(function(s) return s:find("%S") ~= nil end, lines_that)
-  local lines = is_curbuf_L1 and _H.zip(lines_this, lines_that) or _H.zip(lines_that, lines_this)
-  local time = _H.get_timestr()
-  local interlaced_path = time .. ".interlaced.txt"
-  vim_fn.writefile(lines, interlaced_path)
-  vim_cmd("edit " .. interlaced_path)
-  if not M._is_mappings_on then
-    M.cmd.EnableKeybindings()
-  end
-end
-
----@param params table
----@return nil
-M.cmd.InterlaceWithL1 = function(params)
-  _H.InterlaceWithL(params, false)
-end
-
----@param params table
----@return nil
-M.cmd.InterlaceWithL2 = function(params)
-  _H.InterlaceWithL(params, true)
-end
-
 M.cmd.DeInterlace = function(a)
   -- :[range]ItDeInterlace, works on the whole buffer if range is not provided
   -- upper- and lower-most empty lines are ignored

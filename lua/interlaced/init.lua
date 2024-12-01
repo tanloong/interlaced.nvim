@@ -31,6 +31,46 @@ local M = {
   cmd = {},
 }
 
+---@param params table
+---@param is_curbuf_L1 boolean
+---@return nil
+_H.InterlaceWithL = function(params, is_curbuf_L1)
+  local filepath = params.args
+  local fh, err = io.open(filepath, "r")
+  if not fh then
+    logger.warning("Failed to open file for reading: " .. filepath .. "\nError: " .. err)
+    return nil
+  end
+  local lines_that = {}
+  for line in fh:lines() do
+    table.insert(lines_that, line)
+  end
+  fh:close()
+  local lines_this = vim_api.nvim_buf_get_lines(0, 0, -1, true)
+  lines_this = vim.tbl_filter(function(s) return s:find("%S") ~= nil end, lines_this)
+  lines_that = vim.tbl_filter(function(s) return s:find("%S") ~= nil end, lines_that)
+  local lines = is_curbuf_L1 and _H.zip(lines_this, lines_that) or _H.zip(lines_that, lines_this)
+  local time = _H.get_timestr()
+  local interlaced_path = time .. ".interlaced.txt"
+  vim_fn.writefile(lines, interlaced_path)
+  vim_cmd("edit " .. interlaced_path)
+  if not M._is_mappings_on then
+    M.cmd.EnableKeybindings()
+  end
+end
+
+---@param params table
+---@return nil
+M.cmd.InterlaceWithL1 = function(params)
+  _H.InterlaceWithL(params, false)
+end
+
+---@param params table
+---@return nil
+M.cmd.InterlaceWithL2 = function(params)
+  _H.InterlaceWithL(params, true)
+end
+
 M.cmd.EnableKeybindings = function()
   if type(M.config.enable_keybindings_hook) == "function" then M.config.enable_keybindings_hook() end
   if M._is_mappings_on then
@@ -116,8 +156,7 @@ end
 
 M.cmd.Dump = function(a)
   local path = nil
-  -- a.args == nil: the BufWinLeave autocmd below calls this func without args
-  if a.args == nil or #a.args == 0 then
+  if a == nil or a.args == nil or #a.args == 0 then
     path = vim.fs.joinpath(vim_fn.expand("%:h"), ".interlaced.json")
   else
     path = a.args
@@ -136,7 +175,7 @@ end
 
 M.cmd.Load = function(a)
   local path = nil
-  if a.args == nil or #a.args == 0 then
+  if a == nil or a.args == nil or #a.args == 0 then
     path = vim.fs.joinpath(vim_fn.expand("%:h"), ".interlaced.json")
   else
     path = a.args
@@ -189,6 +228,8 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "DisableKeybindings", M.cmd.DisableKeybindings, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "Dump", M.cmd.Dump, { complete = "file", nargs = "?" })
   create_command(M.config.cmd_prefix .. "EnableKeybindings", M.cmd.EnableKeybindings, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "InterlaceWithL1", M.cmd.InterlaceWithL1, { complete = "file", nargs = 1 })
+  create_command(M.config.cmd_prefix .. "InterlaceWithL2", M.cmd.InterlaceWithL2, { complete = "file", nargs = 1 })
   create_command(M.config.cmd_prefix .. "Load", M.cmd.Load, { complete = "file", nargs = "?" })
   create_command(M.config.cmd_prefix .. "SetLangNum", M.cmd.SetLangNum, { nargs = "?" })
   create_command(M.config.cmd_prefix .. "SetSeparator", M.cmd.SetSeparator, { nargs = "*" })
@@ -200,8 +241,6 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "MatchToggle", mt.cmd.MatchToggle, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "DeInterlace", rpst.cmd.DeInterlace, { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "Interlace", rpst.cmd.Interlace, { nargs = "*", range = "%" })
-  create_command(M.config.cmd_prefix .. "InterlaceWithL1", rpst.cmd.InterlaceWithL1, { complete = "file", nargs = 1 })
-  create_command(M.config.cmd_prefix .. "InterlaceWithL2", rpst.cmd.InterlaceWithL2, { complete = "file", nargs = 1 })
   create_command(M.config.cmd_prefix .. "NavigateDown", rpst.cmd.NavigateDown, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "NavigateUp", rpst.cmd.NavigateUp, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "NextUnaligned", rpst.cmd.NextUnaligned, { nargs = 0 })
@@ -214,7 +253,6 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "PushUpPair", rpst.cmd.PushUpPair, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "SplitChineseSentences", rpst.cmd.SplitChineseSentences, { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "SplitEnglishSentences", rpst.cmd.SplitEnglishSentences, { nargs = 0, range = "%" })
-
   logger.info("started")
 end
 
