@@ -39,6 +39,7 @@ _H.delete_trailing_empty_lines = function()
   end
 end
 
+---Push current line up to the chunk above, joining to the end of its counterpart
 M.cmd.PushUp = function(lineno)
   lineno = lineno or vim_fn.line(".")
   if lineno <= (M.config.lang_num + 1) then
@@ -65,6 +66,7 @@ M.cmd.PushUp = function(lineno)
   end
 end
 
+---Push current chunk up to the one above, joining each line to the end of the corresponding counterpart
 M.cmd.PushUpPair = function()
   local here = vim_api.nvim_win_get_cursor(0)
 
@@ -80,6 +82,7 @@ M.cmd.PushUpPair = function()
   vim_api.nvim_win_set_cursor(0, here)
 end
 
+---Pull the counterpart line from the chunk below up to the end of current line
 M.cmd.PullBelow = function(lineno)
   local here = vim_api.nvim_win_get_cursor(0)
   lineno = lineno or here[1]
@@ -88,6 +91,7 @@ M.cmd.PullBelow = function(lineno)
   vim_api.nvim_win_set_cursor(0, here)
 end
 
+---Pull the chunk below up to current chunk, joining each line to the end of the corresponding line
 M.cmd.PullBelowPair = function()
   local here = vim_api.nvim_win_get_cursor(0)
   local lineno = here[1]
@@ -103,6 +107,7 @@ M.cmd.PullBelowPair = function()
   vim_api.nvim_win_set_cursor(0, here)
 end
 
+---Push the text on the right side of the cursor in the current line down to the chunk below
 M.cmd.PushDownRightPart = function()
   local lineno = vim_fn.line(".")
   local last_lineno = vim_fn.line("$")
@@ -140,41 +145,20 @@ M.cmd.PushDownRightPart = function()
   end
 end
 
+---Push current line down to the chunk below
 M.cmd.PushDown = function()
   vim_cmd([[normal! 0]])
   M.cmd.PushDownRightPart()
 end
 
+---Move cursor to the chunk below at the counterpart of current line
 M.cmd.NavigateDown = function()
   vim_cmd([[normal! 0]] .. (M.config.lang_num + 1) .. "j")
 end
 
+---Move cursor to the chunk above at the counterpart of current line
 M.cmd.NavigateUp = function()
   vim_cmd([[normal! 0]] .. (M.config.lang_num + 1) .. "k")
-end
-
----@param lines1 (string|nil)[]
----@param lines2 (string|nil)[]
----@return string[]
-_H.zip = function(lines1, lines2)
-  local lines = {}
-  local len_max = math.max(#lines1, #lines2)
-  for i = 1, len_max do
-    table.insert(lines, lines1[i] or "")
-    table.insert(lines, lines2[i] or "")
-    table.insert(lines, "")
-  end
-  return lines
-end
-
----@return string
-_H.get_timestr = function()
-  local timestr = os.date("%Y-%m-%d.%H-%M-%S")
-  local stamp = tostring(math.floor(vim_uv.hrtime() / 1000000) % 1000)
-  while #stamp < 3 do
-    stamp = "0" .. stamp
-  end
-  return timestr .. "." .. stamp
 end
 
 M.cmd.DeInterlace = function(a)
@@ -229,6 +213,7 @@ _H.SplitHelper = function(regex, a)
   end
 end
 
+---Insert a newline at end of each Chinese sentence boundaries
 ---@param a table
 ---@return nil
 M.cmd.SplitChineseSentences = function(a)
@@ -239,6 +224,7 @@ M.cmd.SplitChineseSentences = function(a)
   _H.SplitHelper(regex, a)
 end
 
+---Insert a newline at end of each English sentence boundaries
 ---@param a table
 ---@return nil
 M.cmd.SplitEnglishSentences = function(a)

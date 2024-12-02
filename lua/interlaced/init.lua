@@ -31,6 +31,31 @@ local M = {
   cmd = {},
 }
 
+---@param lines1 (string|nil)[]
+---@param lines2 (string|nil)[]
+---@return string[]
+_H.zip = function(lines1, lines2)
+  local lines = {}
+  local len_max = math.max(#lines1, #lines2)
+  for i = 1, len_max do
+    table.insert(lines, lines1[i] or "")
+    table.insert(lines, lines2[i] or "")
+    table.insert(lines, "")
+  end
+  return lines
+end
+
+---@return string
+_H.get_timestr = function()
+  local timestr = os.date("%Y-%m-%d.%H-%M-%S")
+  local stamp = tostring(math.floor(vim_uv.hrtime() / 1000000) % 1000)
+  while #stamp < 3 do
+    stamp = "0" .. stamp
+  end
+  return timestr .. "." .. stamp
+end
+
+
 ---@param params table
 ---@param is_curbuf_L1 boolean
 ---@return nil
@@ -71,6 +96,7 @@ M.cmd.InterlaceWithL2 = function(params)
   _H.InterlaceWithL(params, true)
 end
 
+---Enable custom keybindings as defined in M.config.mappings.
 M.cmd.EnableKeybindings = function()
   if type(M.config.enable_keybindings_hook) == "function" then M.config.enable_keybindings_hook() end
   if M._is_mappings_on then
@@ -85,6 +111,7 @@ M.cmd.EnableKeybindings = function()
   M._is_mappings_on = true
 end
 
+---Disable all keybindings set by EnableKeybindings.
 M.cmd.DisableKeybindings = function()
   if type(M.config.disable_keybindings_hook) == "function" then M.config.disable_keybindings_hook() end
   if not M._is_mappings_on then
