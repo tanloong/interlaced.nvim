@@ -123,7 +123,7 @@ M.cmd.ListHighlights = function()
   vim.cmd([[filter /\v^]] .. M.group_prefix .. "/ highlight")
 end
 
----@return integer the window id of the ListMatches window
+---@return integer, integer the window id and buffer number
 M.cmd.ListMatches = function()
   local origwinid = vim_api.nvim_get_current_win()
   vim.cmd([[botright split | resize ]] .. vim.o.cmdwinheight)
@@ -245,17 +245,18 @@ M.cmd.ListMatches = function()
   end
 
   for _, entry in ipairs({
-    { "n",          "D",       delete_match,  "Delete match(es) of the pattern on cursor line" },
-    { "n",          "U",       restore_match, "Restore the last deleted match" },
-    { "n",          "s",       cycle_sort,    "cycle through sort methods (1. pattern, 2. color, 3. insertion order)" },
-    { { "n", "i", "v", "s" }, "<enter>", change_match,  "modify the pattern or color of the match under the cursor" },
+    { "n", "D", delete_match,  "Delete match(es) of the pattern on cursor line" },
+    { "n", "U", restore_match, "Restore the last deleted match" },
+    { "n", "s", cycle_sort,
+      "cycle through sort methods (1. pattern, 2. color, 3. insertion order)" },
+    { { "n", "i", "v", "s" }, "<enter>", change_match, "modify the pattern or color of the match under the cursor" },
   }) do
     local modes, from, to, desc = unpack(entry)
     vim.keymap.set(modes, from, to, { desc = desc, silent = true, buffer = true, nowait = true, noremap = true })
   end
 
   vim_fn.win_execute(listwinid, [[normal! G]])
-  return listwinid
+  return listwinid, bufnr
 end
 
 M.cmd.MatchAddVisual = function()
@@ -263,13 +264,18 @@ M.cmd.MatchAddVisual = function()
   local pattern = table.concat(
     vim.tbl_map(_H.escape_text, vim_fn.getregion(vim_fn.getpos("'<"), vim_fn.getpos("'>"), { type = "v" })), [[\\n]])
 
-  local listwin = M.cmd.ListMatches()
-  vim_fn.win_execute(listwin, [[call nvim_buf_set_lines(0, -1, -1, 0, ["_ _ ]] .. pattern .. [["]) | exe "normal! G02wv$\<c-g>"]])
+  local listwin, listbuf = M.cmd.ListMatches()
+  local linestart = vim_api.nvim_buf_get_lines(listbuf, 0, 1, true)[1] == "" and 0 or -1
+  vim_fn.win_execute(listwin,
+    [[call nvim_buf_set_lines(0, ]] ..
+    linestart .. [[, -1, 0, ["_ _ ]] .. pattern .. [["]) | exe "normal! G02wv$\<c-g>"]])
 end
 
 M.cmd.MatchAdd = function()
-  local listwin = M.cmd.ListMatches()
-  vim_fn.win_execute(listwin, [[call nvim_buf_set_lines(0, -1, -1, 0, ["_ _ pattern"]) | exe "normal! G02wv$\<c-g>"]])
+  local listwin, listbuf = M.cmd.ListMatches()
+  local linestart = vim_api.nvim_buf_get_lines(listbuf, 0, 1, true)[1] == "" and 0 or -1
+  vim_fn.win_execute(listwin,
+    [[call nvim_buf_set_lines(0, ]] .. linestart .. [[, -1, 0, ["_ _ pattern"]) | exe "normal! G02wv$\<c-g>"]])
 end
 
 return M
