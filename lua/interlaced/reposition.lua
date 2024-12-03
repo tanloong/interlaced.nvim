@@ -40,8 +40,9 @@ _H.delete_trailing_empty_lines = function()
 end
 
 ---Push current line up to the chunk above, joining to the end of its counterpart
-M.cmd.PushUp = function(lineno)
-  lineno = lineno or vim_fn.line(".")
+---@param a table
+M.cmd.PushUp = function(a)
+  lineno = a.lineno or vim_fn.line(".")
   if lineno <= (M.config.lang_num + 1) then
     logger.warning("Pushing too early, please move down your cursor.")
     return
@@ -76,18 +77,19 @@ M.cmd.PushUpPair = function()
   end
 
   for offset = 1, M.config.lang_num do
-    M.cmd.PushUp(lineno + offset)
+    M.cmd.PushUp { lineno = lineno + offset }
   end
 
   vim_api.nvim_win_set_cursor(0, here)
 end
 
 ---Pull the counterpart line from the chunk below up to the end of current line
-M.cmd.PullBelow = function(lineno)
+---@param a table
+M.cmd.PullBelow = function(a)
   local here = vim_api.nvim_win_get_cursor(0)
-  lineno = lineno or here[1]
+  lineno = a.lineno or here[1]
 
-  M.cmd.PushUp(lineno + M.config.lang_num + 1)
+  M.cmd.PushUp { lineno = lineno + M.config.lang_num + 1 }
   vim_api.nvim_win_set_cursor(0, here)
 end
 
@@ -101,7 +103,7 @@ M.cmd.PullBelowPair = function()
   end
 
   for offset = 1, M.config.lang_num do
-    M.cmd.PushUp(lineno + offset)
+    M.cmd.PushUp { lineno = lineno + offset }
   end
 
   vim_api.nvim_win_set_cursor(0, here)
