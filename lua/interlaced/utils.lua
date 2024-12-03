@@ -16,7 +16,7 @@ local M = {}
 M.match_dict2list = function(dict)
   local ret = {}
   for pat, id_grp_prio in pairs(dict) do
-    table.insert(ret, {pattern = pat, id = id_grp_prio.id, group = id_grp_prio.group, priority = id_grp_prio.priority})
+    table.insert(ret, { pattern = pat, id = id_grp_prio.id, group = id_grp_prio.group, priority = id_grp_prio.priority })
   end
   return ret
 end
@@ -34,10 +34,14 @@ end
 --- @param list table[]
 --- @return table
 M.match_list2dict = function(list)
+  if next(list) == nil then return {} end
+  local pattern
   local ret = {}
   for _, entry in ipairs(list) do
-    local pattern = entry.pattern
-    ret[pattern] = { id = entry.id, group = entry.group, priority = entry.priority }
+    pattern = entry.pattern
+    if pattern ~= nil then
+      ret[pattern] = { id = entry.id, group = entry.group, priority = entry.priority }
+    end
   end
   return ret
 end
