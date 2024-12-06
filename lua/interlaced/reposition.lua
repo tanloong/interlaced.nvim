@@ -1,13 +1,10 @@
 #!/usr/bin/env lua
 
-local keyset = vim.keymap.set
 local setline = vim.fn.setline
 local getline = vim.fn.getline
 local vim_fn = vim.fn
 local vim_api = vim.api
 local vim_cmd = vim.cmd
-local vim_uv = vim.uv or vim.loop
-local create_command = vim_api.nvim_create_user_command
 
 local mt = require("interlaced.match")
 local logger = require("interlaced.logger")
@@ -42,7 +39,13 @@ end
 ---Push current line up to the chunk above, joining to the end of its counterpart
 ---@param a table
 M.cmd.PushUp = function(a)
-  lineno = a.lineno or vim_fn.line(".")
+  local lineno
+  if type(a) == "table" and type(a.lineno) == "number" then
+    lineno = a.lineno
+  else
+    lineno = vim_fn.line(".")
+  end
+
   if lineno <= (M.config.lang_num + 1) then
     logger.warning("Pushing too early, please move down your cursor.")
     return
@@ -87,7 +90,12 @@ end
 ---@param a table
 M.cmd.PullBelow = function(a)
   local here = vim_api.nvim_win_get_cursor(0)
-  lineno = a.lineno or here[1]
+  local lineno
+  if type(a) == "table" and type(a.lineno) == "number" then
+    lineno = a.lineno
+  else
+    lineno = here[1]
+  end
 
   M.cmd.PushUp { lineno = lineno + M.config.lang_num + 1 }
   vim_api.nvim_win_set_cursor(0, here)

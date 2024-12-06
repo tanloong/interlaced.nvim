@@ -92,8 +92,36 @@ end
 
 M.get_response = function()
   local curr_lineno = vim.fn.line "." - 1
-  local lines = vim.api.nvim_buf_get_lines(0, curr_lineno - 3, curr_lineno + 1 + 3 + 1, false)
+
+  local lines = { "ABOVE:", "```", }
+  for _, line in ipairs(vim.api.nvim_buf_get_lines(0, curr_lineno - 1 - 3, curr_lineno - 1, false)) do
+    if line ~= "" then
+      table.insert(lines, line)
+    end
+  end
+  table.insert(lines, "```")
+  table.insert(lines, "")
+  table.insert(lines, "MIDDLE:")
+  table.insert(lines, "```")
+  for _, line in ipairs(vim.api.nvim_buf_get_lines(0, curr_lineno - 1, curr_lineno - 1 + 2 + 1, false)) do
+    if line ~= "" then
+      table.insert(lines, line)
+      table.insert(lines, "")
+    end
+  end
+  table.insert(lines, "```")
+  table.insert(lines, "")
+  table.insert(lines, "BELOW:")
+  table.insert(lines, "```")
+  for _, line in ipairs(vim.api.nvim_buf_get_lines(0, curr_lineno - 1 + 2 + 1 + 1, curr_lineno - 1 + 2 + 1 + 1 + 2 + 1, false)) do
+    if line ~= "" then
+      table.insert(lines, line)
+    end
+  end
+  table.insert(lines, "```")
+  -- vim.api.nvim_buf_get_lines(0, curr_lineno - 3, curr_lineno + 1 + 3 + 1, false)
   local prompt = table.concat(lines, "\n")
+
   local path = M.dump_data(prompt)
   if path == nil then
     return
@@ -101,6 +129,7 @@ M.get_response = function()
 
   local secret = os.getenv "OPENAI_API_KEY"
   local endpoint = os.getenv "OPENAI_API_BASE" .. "/chat/completions"
+  -- local endpoint = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
   local args = { "--no-buffer", "-X", "POST", endpoint, "-H",
     "Content-Type: application/json",
     "-H", "Authorization: Bearer " .. secret,
