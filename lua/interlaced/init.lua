@@ -1,8 +1,6 @@
 #!/usr/bin/env lua
 
 local keyset = vim.keymap.set
-local setline = vim.fn.setline
-local getline = vim.fn.getline
 local vim_fn = vim.fn
 local vim_api = vim.api
 local vim_cmd = vim.cmd
@@ -103,9 +101,12 @@ M.cmd.EnableKeybindings = function()
     logger.warning("Keybindings already on, nothing to do")
     return
   end
-  for shortcut, func in pairs(M.config.mappings) do
-    _H.store_orig_mapping(shortcut)
-    keyset("n", shortcut, func, { noremap = true, buffer = true, nowait = true })
+  if M.config.keymaps == nil then return end
+  local mode, lhs, rhs, opts
+  for _, entry in ipairs(M.config.keymaps) do
+    mode, lhs, rhs, opts = unpack(entry)
+    _H.store_orig_mapping(lhs, mode)
+    keyset(mode, lhs, rhs, opts)
   end
   logger.info("Keybindings on")
   M._is_mappings_on = true
@@ -118,16 +119,22 @@ M.cmd.DisableKeybindings = function()
     logger.warning("Keybindings already off, nothing to do")
     return
   end
-  for keystroke, mapping in pairs(M._orig_mappings) do
-    if vim.tbl_isempty(mapping) then
-      vim_api.nvim_buf_del_keymap(0, "n", keystroke)
-    else
-      mapping.buffer = true
-      vim_fn.mapset("n", false, mapping)
+  if M.config.keymaps ~= nil then
+    local mode, lhs, _
+    for _, entry in ipairs(M.config.keymaps) do
+      mode, lhs, _, _ = unpack(entry)
+      pcall(vim_api.nvim_buf_del_keymap, 0, mode, lhs)
+    end
+  end
+  for _, mapargs in ipairs(M._orig_mappings) do
+    if next(mapargs) ~= nil then
+      mapargs.buffer = true
+      vim_fn.mapset(mapargs)
     end
   end
   logger.info("Keybindings off")
   M._is_mappings_on = false
+  M._orig_mappings = {}
 end
 
 M.cmd.SetSeparator = function(a)
@@ -228,11 +235,17 @@ M.cmd.Load = function(a)
   end
 end
 
----@param shortcut string
+---@param key string
+---@param mode string|string[]
 ---@return nil
-_H.store_orig_mapping = function(shortcut)
-  mapping = vim_fn.maparg(shortcut, "n", false, true)
-  M._orig_mappings[shortcut] = mapping
+_H.store_orig_mapping = function(key, mode)
+  if type(mode) == "string" then
+    table.insert(M._orig_mappings, vim_fn.maparg(key, mode, false, true))
+  else
+    for _, m in ipairs(mode) do
+      table.insert(M._orig_mappings, vim_fn.maparg(key, m, false, true))
+    end
+  end
 end
 
 ---@param opts table
@@ -278,8 +291,10 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "PushDownRightPart", rpst.cmd.PushDownRightPart, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "PushUp", rpst.cmd.PushUp, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "PushUpPair", rpst.cmd.PushUpPair, { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "SplitChineseSentences", rpst.cmd.SplitChineseSentences, { nargs = 0, range = "%" })
-  create_command(M.config.cmd_prefix .. "SplitEnglishSentences", rpst.cmd.SplitEnglishSentences, { nargs = 0, range = "%" })
+  create_command(M.config.cmd_prefix .. "SplitChineseSentences", rpst.cmd.SplitChineseSentences,
+    { nargs = 0, range = "%" })
+  create_command(M.config.cmd_prefix .. "SplitEnglishSentences", rpst.cmd.SplitEnglishSentences,
+    { nargs = 0, range = "%" })
   logger.info("started")
 end
 
