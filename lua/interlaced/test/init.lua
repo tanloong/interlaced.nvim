@@ -9,6 +9,7 @@ local function dev_reload()
     end
   end
   require(pkg_name).setup({})
+  vim.print(pkg_name .. " restarted at " .. os.date("%H:%M:%S"))
 end
 
 -- When in development mode, press `<leader>pr` to quickly reload your changes

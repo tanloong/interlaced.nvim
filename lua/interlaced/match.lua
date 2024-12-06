@@ -107,7 +107,7 @@ end
 
 _H.escape_text = function(s)
   -- Reference: https://github.com/inkarkat/vim-mark/blob/fa0898fe5fa8e13aee991534d6cb44f421f07c2c/autoload/mark.vim#L57
-  return vim_fn.substitute(vim_fn.escape(s, [[\^$.*[~]]), [[\n]], [[\\n]], "g")
+  return vim_fn.substitute(vim_fn.escape(s, [[\^$.*[~]]), "\n", "\\n", "g")
 end
 
 M.cmd.MatchToggle = function()
@@ -260,15 +260,19 @@ M.cmd.ListMatches = function()
 end
 
 M.cmd.MatchAddVisual = function()
+  vim_api.nvim_feedkeys(vim_api.nvim_replace_termcodes("<C-\\><C-n>gv", true, false, true), 'n', false)
+
+  local old = vim_fn.getreg("v")
+  vim.cmd([[normal! "vy]])
   -- consider user's selectd text as plain text and escape special chars in the pattern; matchadd() by defualt consider the given pattern magic
-  local pattern = table.concat(
-    vim.tbl_map(_H.escape_text, vim_fn.getregion(vim_fn.getpos("'<"), vim_fn.getpos("'>"), { type = "v" })), [[\\n]])
+  local pattern = _H.escape_text(vim_fn.getreg("v"))
+  vim_fn.setreg("v", old)
 
   local listwin, listbuf = M.cmd.ListMatches()
   local linestart = vim_api.nvim_buf_get_lines(listbuf, 0, 1, true)[1] == "" and 0 or -1
   vim_fn.win_execute(listwin,
     [[call nvim_buf_set_lines(0, ]] ..
-    linestart .. [[, -1, 0, ["_ _ ]] .. pattern .. [["]) | exe "normal! G02wv$\<c-g>"]])
+    linestart .. [[, -1, 0, ["_ _ ]] .. pattern .. [["]) | normal! G02w]])
 end
 
 M.cmd.MatchAdd = function()

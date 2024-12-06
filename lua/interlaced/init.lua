@@ -295,7 +295,6 @@ M.setup = function(opts)
     { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "SplitEnglishSentences", rpst.cmd.SplitEnglishSentences,
     { nargs = 0, range = "%" })
-  logger.info("started")
 end
 
 return M

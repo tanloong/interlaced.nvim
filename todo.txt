@@ -2,6 +2,13 @@ related efforts:
   https://github.com/azabiong/vim-highlighter/blob/main/autoload/highlighter.vim
   https://github.com/inkarkat/vim-mark
 
+Don't pollute commands:
+  https://github.com/nvim-neorocks/nvim-best-practices?tab=readme-ov-file#white_check_mark-do-1
+
+文档生成
+  https://github.com/mrcjkb/vimcats
+  https://github.com/mrcjkb/vimcats/blob/main/luaCATS.md
+
 用户在setup({})里设置的mapping如何指定不要对某个函数进行映射，自定义mapping字典和默认字典合并之后，如果自定义字典里有些key没有写，合并结果会怎么样，如果写了但写的值是nil又会怎么样
 
 在matches window按Enter之后立刻关闭窗口，刷新的match不管是覆盖还是新增都显示到窗口最底部
@@ -17,7 +24,6 @@ change_match不要通过input()让用户先输pattern再输group，应该像cmdw
     /home/tan/projects/neovim/src/nvim/normal.c:6371
 
 在ListMatches窗口的开头显示快捷键和排序方式
-
 
 如果listmatches split window是开着的，新增matches时需要同时更新listamtches split window；并且再 :ItListMatches 或 :ItMatchAdd(Visual) 时不要重复打开新的窗口，直接把光标定位到那个已经打开的window上。
 
