@@ -118,8 +118,8 @@ M.cmd.PullBelowPair = function()
 end
 
 ---Push the text on the right side of the cursor in the current line down to the chunk below
-M.cmd.PushDownRightPart = function()
-  local lineno = vim_fn.line(".")
+M.cmd.PushDownRightPart = function(lineno)
+  lineno = lineno or vim_fn.line(".")
   local last_lineno = vim_fn.line("$")
 
   vim.api.nvim_buf_set_lines(0, -1, -1, false, { "", "", "" })
@@ -156,9 +156,28 @@ M.cmd.PushDownRightPart = function()
 end
 
 ---Push current line down to the chunk below
-M.cmd.PushDown = function()
+M.cmd.PushDown = function(lineno)
   vim_cmd([[normal! 0]])
-  M.cmd.PushDownRightPart()
+  M.cmd.PushDownRightPart(lineno)
+end
+
+---@param lineno integer
+M.cmd.LeaveAlone = function(lineno)
+  lineno = lineno or vim_fn.line(".")
+  if lineno % (M.config.lang_num + 1) == 0 then return end
+
+  for i = lineno - 1, lineno - M.config.lang_num, -1 do
+    if i % (M.config.lang_num + 1) == 0 then break end
+    M.cmd.PushDown(i)
+    vim_fn.setline(i, "-")
+  end
+  for i = lineno + 1, lineno + M.config.lang_num do
+    if i % (M.config.lang_num + 1) == 0 then break end
+    M.cmd.PushDown(i)
+    vim_fn.setline(i, "-")
+  end
+
+  M.cmd.NavigateDown()
 end
 
 ---Move cursor to the chunk below at the counterpart of current line

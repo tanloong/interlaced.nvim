@@ -189,7 +189,6 @@ M.cmd.ListMatches = function()
     -- after a minus 1 the same sort will still be used, acting like a refresh
     cycle_sort()
   end
-
   local function delete_match(lineno)
     lineno = lineno or vim_fn.line(".")
     local line = vim_fn.getline(lineno)
