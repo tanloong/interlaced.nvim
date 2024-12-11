@@ -2,26 +2,6 @@
 
 Line repositioning for bilingual sentence alignment.
 
-## Features
-
-<details>
-<summary>
-1. Push current line up to previous pair
-</summary>
-  <p>
-    <img src="https://github.com/tanloong/interlaced.nvim/assets/71320000/c3894f0d-2a01-4d56-b243-70abb5b2a827" alt="GIF">
-  </p>
-</details>
-
-<details>
-<summary>
-2. Push current line down to the next pair
-</summary>
-  <p>
-    <img src="https://github.com/tanloong/interlaced.nvim/assets/71320000/f324a152-3d45-4a8b-bf29-4c753f2ad199" alt="GIF">
-  </p>
-</details>
-
 ## Requirements
 
 + Neovim >= **0.9.0**
@@ -63,8 +43,10 @@ Line repositioning for bilingual sentence alignment.
 
 ## Commands
 
-- `:ItSplitEnglishSentences`, `:ItSplitChineseSentences`: Identify sentence boundaries and insert a newline between them. Work linewise on the range when provided, the whole buffer if not.
+**ItEnableKeybindings** applys `keymaps` in config. Original keymaps are backed up.
 
-- `:ItMapInterlaced`, `:ItUnmapInterlaced`: `:MapInterlaced` sets keybindings for text manipulations; `UnmapInterlaced` restores them to their previous mappings, if any.
+**ItDisableKeybindings** cancels `keymaps` in config and restores backed up keymaps.
+
+- `:ItSplitEnglishSentences`, `:ItSplitChineseSentences`: Identify sentence endings and insert a newline after each of them. Work linewise on the range when provided, the whole buffer if not.
 
 - `:ItInterlaceWithL1`, `:ItInterlaceWithL2`: Take lines from the current buffer and interlaces them with lines from a specified file, forming an array of `(l1, l2)` pairs. Empty lines are filtered out. The resulting interlaced text is then saved to a new file and opened, then keybindings are setup if they have not been previously.

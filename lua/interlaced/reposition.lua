@@ -190,12 +190,13 @@ M.cmd.DeInterlace = function(a)
 
   -- {start} is zero-based, thus (a.line1 - 1) and (a.line2 - 1)
   -- {end} is exclusive, thus (a.line2 - 1 + 1), thus a.line2
-  local lines = vim_api.nvim_buf_get_lines(buf, a.line1 - 1, a.line2, false)
+  local lines = vim.tbl_filter(function(s) return s ~= "" end,
+    vim_api.nvim_buf_get_lines(buf, a.line1 - 1, a.line2, false))
 
   local results = {}
   -- gather lines from each language and append to {results}
   for offset = 1, M.config.lang_num do
-    for chunkno = 0, #lines - offset, (M.config.lang_num + 1) do
+    for chunkno = 0, #lines - offset, M.config.lang_num do
       if lines[chunkno + offset] ~= "" then
         table.insert(results, lines[chunkno + offset])
       end
@@ -286,7 +287,7 @@ end
 ---@return table<string, integer>
 _H.group_count = function(line)
   local ret = {}
-  local count = nil
+  local count
   for pat, id_grp_prio in pairs(mt._matches) do
     count = _H.match_count(line, pat)
     if count > 0 then
@@ -311,8 +312,8 @@ _H.locate_unaligned = function(direction)
   while lineno % (M.config.lang_num + 1) ~= 1 do lineno = lineno + direction end
   local lastline = direction == 1 and vim_fn.line("$") or 1
 
-  local chunk_lines = nil
-  local group_count1, group_count2 = nil, nil
+  local chunk_lines
+  local group_count1, group_count2
   for l = lineno, lastline, direction * (M.config.lang_num + 1) do
     chunk_lines = vim_api.nvim_buf_get_lines(buf, l - 1, l - 1 + M.config.lang_num, true)
     for i, line1 in ipairs(chunk_lines) do

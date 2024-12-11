@@ -189,7 +189,7 @@ M.cmd.SetLangNum = function(a)
 end
 
 M.cmd.Dump = function(a)
-  local path = nil
+  local path
   if a == nil or a.args == nil or #a.args == 0 then
     path = vim.fs.joinpath(vim_fn.expand("%:h"), ".interlaced.json")
   else
@@ -204,11 +204,16 @@ M.cmd.Dump = function(a)
     },
   }
   -- the json string will be written to the frist line
-  pcall(vim_fn.writefile, { vim.json.encode(data) }, path, "")
+  local ok, msg = pcall(vim_fn.writefile, { vim.json.encode(data) }, path, "")
+  if ok then
+    logger.info("Dumpped at " .. os.date("%H:%M:%S"))
+  else
+    logger.info(msg)
+  end
 end
 
 M.cmd.Load = function(a)
-  local path = nil
+  local path
   if a == nil or a.args == nil or #a.args == 0 then
     path = vim.fs.joinpath(vim_fn.expand("%:h"), ".interlaced.json")
   else
