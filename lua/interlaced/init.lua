@@ -203,13 +203,15 @@ M.cmd.Dump = function(a)
       lang_num = M.config.lang_num
     },
   }
-  -- the json string will be written to the frist line
-  local ok, msg = pcall(vim_fn.writefile, { vim.json.encode(data) }, path, "")
-  if ok then
-    logger.info("Dumpped at " .. os.date("%H:%M:%S"))
-  else
-    logger.info(msg)
+  local f = io.open(path, "w")
+  if f == nil then
+    logger.error("Faled to open " .. path)
+    return
   end
+
+  f:write(vim.json.encode(data))
+  f:close()
+  logger.info("Dumpped at " .. os.date("%H:%M:%S"))
 end
 
 M.cmd.Load = function(a)
@@ -220,12 +222,15 @@ M.cmd.Load = function(a)
     path = a.args
   end
 
-  -- read only the first line
-  local ok, ret = pcall(vim.fn.readfile, path, "", 1)
-  -- ret is a list that contains only the json string element
-  if not ok then return end
+  local f = io.open(path, "r")
+  if f == nil then
+    logger.error("Faled to open " .. path)
+    return
+  end
+  data = f:read("*a")
+  f:close()
 
-  ok, ret = pcall(vim.json.decode, ret[1])
+  ok, ret = pcall(vim.json.decode, data)
   if not ok then return end
 
   if ret.curpos ~= nil then

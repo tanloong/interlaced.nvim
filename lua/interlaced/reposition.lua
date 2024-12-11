@@ -321,12 +321,13 @@ end
 ---@param direction `1`|`-1`
 _H.locate_unaligned = function(direction)
   local buf = vim_api.nvim_get_current_buf()
+  local lineno_orig = vim_fn.line(".")
   -- Add `direction * (lang_num + 1)` to start searching from the next chunk.
   -- This prevents the cursor from remaining on the same unaligned chunk if the
   -- function is called multiple times. If a search returns a false positive
   -- and places the cursor on an aligned chunk, calling this function again
   -- allows the cursor to move forward instead of staying.
-  local lineno = vim_fn.line(".") + direction * (M.config.lang_num + 1)
+  local lineno = lineno_orig + direction * (M.config.lang_num + 1)
   -- locate first line of the nearest chunk below/above and start search from there
   while lineno % (M.config.lang_num + 1) ~= 1 do lineno = lineno + direction end
   local lastline = direction == 1 and vim_fn.line("$") or 1
@@ -346,12 +347,14 @@ _H.locate_unaligned = function(direction)
         if vim.tbl_count(group_count1) ~= vim.tbl_count(group_count2) then
           vim_api.nvim_win_set_cursor(0, { l, 1 })
           vim_api.nvim_feedkeys("zz", "n", true)
+          logger.info("Jumped over " .. math.abs(l - lineno_orig) .. " lines")
           return
         end
         for k1, _ in pairs(group_count1) do
           if group_count2[k1] == nil then
             vim_api.nvim_win_set_cursor(0, { l, 1 })
             vim_api.nvim_feedkeys("zz", "n", true)
+            logger.info("Jumped over " .. math.abs(l - lineno_orig) .. " lines")
             return
           end
         end
