@@ -190,11 +190,11 @@ M.cmd.NavigateUp = function()
   vim_cmd([[normal! 0]] .. (M.config.lang_num + 1) .. "k")
 end
 
+---:[range]ItDeInterlace, works on the whole buffer if range is not provided
+---upper- and lower-most empty lines are ignored
+---requires the range is paired, [(, L2_1), (L1_2, L2_2), (L1_3, L2_3), ...] will make the buffer chaotic
+---@param a table
 M.cmd.DeInterlace = function(a)
-  -- :[range]ItDeInterlace, works on the whole buffer if range is not provided
-  -- upper- and lower-most empty lines are ignored
-  -- requires the range is paired, [(, L2_1), (L1_2, L2_2), (L1_3, L2_3), ...] will make the buffer chaotic
-
   -- 0 does not indicate current buffer to deletebufline(), has to use nvim_get_current_buf()
   local buf = vim_api.nvim_get_current_buf()
 
@@ -207,15 +207,17 @@ M.cmd.DeInterlace = function(a)
     a.line2 = a.line2 - 1
   end
 
+  local num = #a.fargs == 1 and tonumber(a.fargs[1]) or M.config.lang_num
+
   -- {start} is zero-based, thus (a.line1 - 1) and (a.line2 - 1)
   -- {end} is exclusive, thus (a.line2 - 1 + 1), thus a.line2
-  local lines = vim.tbl_filter(function(s) return s ~= "" end,
-    vim_api.nvim_buf_get_lines(buf, a.line1 - 1, a.line2, false))
+  local lines = vim_api.nvim_buf_get_lines(buf, a.line1 - 1, a.line2, false)
+  local len_lines = #lines
 
   local results = {}
   -- gather lines from each language and append to {results}
-  for offset = 1, M.config.lang_num do
-    for chunkno = 0, #lines - offset, M.config.lang_num do
+  for offset = 1, num do
+    for chunkno = 0, len_lines - offset, num + 1 do
       if lines[chunkno + offset] ~= "" then
         table.insert(results, lines[chunkno + offset])
       end
