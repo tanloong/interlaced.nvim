@@ -46,27 +46,65 @@ M.cmd.PushUp = function(a)
     lineno = vim_fn.line(".")
   end
 
-  if lineno <= (M.config.lang_num + 1) then
-    logger.warning("Pushing too early, please move down your cursor.")
-    return
-  end
-  if lineno % (M.config.lang_num + 1) == 0 then
-    return
-  end
+  if lineno < (M.config.lang_num + 1) or lineno % (M.config.lang_num + 1) == 0 then return end
 
   _H.append_to_3_lines_above(lineno)
 
   lineno = lineno + (M.config.lang_num + 1)
   local last_lineno = vim_fn.line("$")
+
+  if vim_api.nvim__redraw ~= nil then
+    local soft_last_lineno = math.min(last_lineno, lineno + 300 * (M.config.lang_num + 1))
+    while lineno <= soft_last_lineno do
+      setline(lineno - (M.config.lang_num + 1), getline(lineno))
+      lineno = lineno + (M.config.lang_num + 1)
+    end
+    vim_api.nvim__redraw({ win = 0, cursor = true })
+    vim_cmd "redraw"
+  end
+
   while lineno <= last_lineno do
     setline(lineno - (M.config.lang_num + 1), getline(lineno))
     lineno = lineno + (M.config.lang_num + 1)
   end
+
   setline(lineno - (M.config.lang_num + 1), "")
 
   _H.delete_trailing_empty_lines()
-  if M.config.auto_save then
-    vim_cmd("w")
+  if M.config.auto_save then vim_cmd("w") end
+end
+
+---Helper for PushUpPair and PullBelowPair
+_H.upward_pair = function(lineno)
+  -- locate first chunk line
+  lineno = lineno - lineno % (M.config.lang_num + 1)
+
+  for offset = 1, M.config.lang_num do _H.append_to_3_lines_above(lineno + offset) end
+
+  lineno = lineno + (M.config.lang_num + 1)
+  local last_lineno = vim_fn.line("$")
+
+  if vim_api.nvim__redraw ~= nil then
+    local soft_last_lineno = math.min(last_lineno, lineno + 300 * (M.config.lang_num + 1))
+    while lineno <= soft_last_lineno do
+      for offset = 1, M.config.lang_num do
+        setline((lineno + offset) - (M.config.lang_num + 1), getline(lineno + offset))
+      end
+      lineno = lineno + (M.config.lang_num + 1)
+    end
+    vim_api.nvim__redraw({ win = 0, cursor = true })
+    vim_cmd "redraw"
+  end
+
+  while lineno <= last_lineno do
+    for offset = 1, M.config.lang_num do
+      setline((lineno + offset) - (M.config.lang_num + 1), getline(lineno + offset))
+    end
+    lineno = lineno + (M.config.lang_num + 1)
+  end
+
+  for offset = 1, M.config.lang_num do
+    setline((lineno + offset) - (M.config.lang_num + 1), "")
   end
 end
 
@@ -75,13 +113,12 @@ M.cmd.PushUpPair = function()
   local here = vim_api.nvim_win_get_cursor(0)
 
   local lineno = here[1]
-  while lineno % (M.config.lang_num + 1) ~= 0 do
-    lineno = lineno - 1
-  end
+  if lineno <= (M.config.lang_num + 1) then return end
 
-  for offset = 1, M.config.lang_num do
-    M.cmd.PushUp { lineno = lineno + offset }
-  end
+  _H.upward_pair(lineno)
+
+  _H.delete_trailing_empty_lines()
+  if M.config.auto_save then vim_cmd("w") end
 
   vim_api.nvim_win_set_cursor(0, here)
 end
@@ -104,55 +141,62 @@ end
 ---Pull the chunk below up to current chunk, joining each line to the end of the corresponding line
 M.cmd.PullBelowPair = function()
   local here = vim_api.nvim_win_get_cursor(0)
-  local lineno = here[1]
 
-  while lineno % (M.config.lang_num + 1) ~= 0 do
-    lineno = lineno + 1
-  end
+  local lineno = here[1] + (M.config.lang_num + 1)
+  if vim_fn.line("$") - lineno <= (M.config.lang_num) then return end
 
-  for offset = 1, M.config.lang_num do
-    M.cmd.PushUp { lineno = lineno + offset }
-  end
+  _H.upward_pair(lineno)
+
+  _H.delete_trailing_empty_lines()
+  if M.config.auto_save then vim_cmd("w") end
 
   vim_api.nvim_win_set_cursor(0, here)
 end
 
 ---Push the text on the right side of the cursor in the current line down to the chunk below
-M.cmd.PushDownRightPart = function(lineno)
-  lineno = lineno or vim_fn.line(".")
+M.cmd.PushDownRightPart = function(lnum)
+  local curr_lineno = lnum or vim_fn.line(".")
+  if curr_lineno % (M.config.lang_num + 1) == 0 then return end
+
   local last_lineno = vim_fn.line("$")
+  for _ = 1, M.config.lang_num + 1 do vim_fn.append(last_lineno, "") end
+  local last_counterpart_lineno = last_lineno - (last_lineno - curr_lineno) % (M.config.lang_num + 1)
+  local soft_last_counterpart_lineno = math.min(last_counterpart_lineno, curr_lineno + 300 * (M.config.lang_num + 1))
+  local lineno = soft_last_counterpart_lineno - (M.config.lang_num + 1)
+  local cache_line = getline(soft_last_counterpart_lineno)
 
-  vim.api.nvim_buf_set_lines(0, -1, -1, false, { "", "", "" })
-
-  local last_counterpart_lineno = last_lineno
-  while (last_counterpart_lineno - lineno) % (M.config.lang_num + 1) ~= 0 do
-    last_counterpart_lineno = last_counterpart_lineno - 1
+  while lineno > curr_lineno do
+    setline(lineno + (M.config.lang_num + 1), getline(lineno))
+    lineno = lineno - (M.config.lang_num + 1)
   end
 
-  for i = last_counterpart_lineno, lineno + (M.config.lang_num + 1), -(M.config.lang_num + 1) do
-    setline(i + (M.config.lang_num + 1), getline(i))
-  end
-
-  local curr_line = getline(lineno)
+  local curr_line = getline(curr_lineno)
   local cursor_col = vim_fn.col(".")
-
   local before_cursor = curr_line:sub(1, cursor_col - 1)
   local after_cursor = curr_line:sub(cursor_col)
   before_cursor = before_cursor:gsub([[%s+$]], "", 1)
   after_cursor = after_cursor:gsub([[^%s+]], "", 1)
-
-  local languid = tostring(lineno % (M.config.lang_num + 1))
+  local languid = tostring(curr_lineno % (M.config.lang_num + 1))
   local sep = M.config.language_separator[languid]
   before_cursor = vim_fn.substitute(before_cursor, vim_fn.escape(sep, [[\]]) .. [[$]], "", "")
   after_cursor = vim_fn.substitute(after_cursor, [[^]] .. vim_fn.escape(sep, [[\]]), "", "")
+  setline(curr_lineno, before_cursor)
+  setline(curr_lineno + (M.config.lang_num + 1), after_cursor)
 
-  setline(lineno, before_cursor)
-  setline(lineno + (M.config.lang_num + 1), after_cursor)
+  if vim_api.nvim__redraw ~= nil then
+    vim_api.nvim__redraw({ win = 0, cursor = true })
+    vim_cmd "redraw"
+  end
+
+  lineno = last_counterpart_lineno
+  while lineno > soft_last_counterpart_lineno do
+    setline(lineno + (M.config.lang_num + 1), getline(lineno))
+    lineno = lineno - (M.config.lang_num + 1)
+  end
+  setline(soft_last_counterpart_lineno + (M.config.lang_num + 1), cache_line)
 
   _H.delete_trailing_empty_lines()
-  if M.config.auto_save then
-    vim_cmd("w")
-  end
+  if M.config.auto_save then vim_cmd("w") end
 end
 
 ---Push current line down to the chunk below
@@ -161,22 +205,53 @@ M.cmd.PushDown = function(lineno)
   M.cmd.PushDownRightPart(lineno)
 end
 
----@param lineno integer
-M.cmd.LeaveAlone = function(lineno)
-  lineno = lineno or vim_fn.line(".")
-  if lineno % (M.config.lang_num + 1) == 0 then return end
+---@param lnum integer
+M.cmd.LeaveAlone = function(lnum)
+  curr_lineno = lnum or vim_fn.line(".")
+  local languid = curr_lineno % (M.config.lang_num + 1)
+  if languid == 0 then return end
 
-  for i = lineno - 1, lineno - M.config.lang_num, -1 do
-    if i % (M.config.lang_num + 1) == 0 then break end
-    M.cmd.PushDown(i)
-    vim_fn.setline(i, "-")
+  local last_lineno = vim_fn.line("$")
+  for _ = 1, M.config.lang_num + 1 do vim_fn.append(last_lineno, "") end
+
+  local last_chunk_prev_lineno = last_lineno - last_lineno % (M.config.lang_num + 1)
+  local curr_chunk_prev_lineno = curr_lineno - languid
+  local soft_last_chunk_prev_lineno = math.min(last_chunk_prev_lineno,
+    curr_chunk_prev_lineno + 300 * (M.config.lang_num + 1))
+  local lineno = soft_last_chunk_prev_lineno - (M.config.lang_num + 1)
+  local cache_lines = vim_api.nvim_buf_get_lines(0, soft_last_chunk_prev_lineno,
+    soft_last_chunk_prev_lineno + (M.config.lang_num + 1), false)
+
+  while lineno > curr_chunk_prev_lineno do
+    for offset = 1, M.config.lang_num do
+      if offset ~= languid then setline((lineno + offset) + (M.config.lang_num + 1), getline(lineno + offset)) end
+    end
+    lineno = lineno - (M.config.lang_num + 1)
   end
-  for i = lineno + 1, lineno + M.config.lang_num do
-    if i % (M.config.lang_num + 1) == 0 then break end
-    M.cmd.PushDown(i)
-    vim_fn.setline(i, "-")
+  for offset = 1, M.config.lang_num do
+    if offset ~= languid then setline(lineno + offset, "-") end
   end
 
+  if vim_api.nvim__redraw ~= nil then
+    vim_api.nvim__redraw({ win = 0, cursor = true })
+    vim_cmd "redraw"
+  end
+
+  lineno = last_chunk_prev_lineno
+  while lineno > soft_last_chunk_prev_lineno do
+    for offset = 1, M.config.lang_num do
+      if offset ~= languid then setline((lineno + offset) + (M.config.lang_num + 1), getline(lineno + offset)) end
+    end
+    lineno = lineno - (M.config.lang_num + 1)
+  end
+  for offset = 1, M.config.lang_num do
+    if offset ~= languid then
+      setline((soft_last_chunk_prev_lineno + offset) + (M.config.lang_num + 1),
+        cache_lines[offset])
+    end
+  end
+
+  _H.delete_trailing_empty_lines()
   M.cmd.NavigateDown()
 end
 

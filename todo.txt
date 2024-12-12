@@ -2,6 +2,9 @@ related efforts:
   https://github.com/azabiong/vim-highlighter/blob/main/autoload/highlighter.vim
   https://github.com/inkarkat/vim-mark
 
+
+等vim.api.nvim__redraw稳定之后移除 reposition.lua 中的 if vim_api.nvim__redraw ~= nil then 保护
+
 Don't pollute commands:
   https://github.com/nvim-neorocks/nvim-best-practices?tab=readme-ov-file#white_check_mark-do-1
 
