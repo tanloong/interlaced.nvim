@@ -262,32 +262,34 @@ M.cmd.SplitEnglishSentences = function(a)
   _H.SplitHelper(regex, a)
 end
 
+---:[range]ItInterlace [lang_num]
+---Works on the whole buffer when range is not provided. Uses config.lang_num when lang_num is not provided.
+---Empty lines are filtered out before the interlacement.
 ---@param a table
 ---@return nil
 M.cmd.Interlace = function(a)
-  local x, y
-  local arg_count = #a.fargs
+  -- {start} is zero-based, thus (a.line1 - 1) and (a.line2 - 1)
+  -- {end} is exclusive, thus (a.line2 - 1 + 1), thus a.line2
+  local lines = vim.tbl_filter(function(s) return s ~= "" end,
+    vim_api.nvim_buf_get_lines(0, a.line1 - 1, a.line2, false))
+  local lang_num = #a.fargs == 1 and tonumber(a.fargs[1]) or M.config.lang_num
 
-  if arg_count == 0 then
-    x, y = 1, 1
-  elseif arg_count == 1 then
-    x, y = tonumber(a.fargs[1]), tonumber(a.fargs[1])
-  elseif arg_count == 2 then
-    x, y = tonumber(a.fargs[1]), tonumber(a.fargs[2])
-  else
-    logger.warning("Argument Error: can have at most 2 arguments")
+  local chunk_count = math.floor(#lines / lang_num)
+  local remainder = #lines % lang_num
+  local result = {}
+
+  for i = 1, chunk_count do
+    for j = 1, lang_num do
+      table.insert(result, lines[i + chunk_count * (j - 1)])
+    end
+    table.insert(result, "")
   end
 
-  local i = a.line1 + x - 1
-  local total = a.line2 - a.line1 + 1
-  local j = math.floor(total / (x + y)) * x + a.line1
-
-  while j < a.line2 do
-    local range = y > 1 and j .. "," .. (j + y) or j
-    vim.cmd(range .. "move " .. i)
-    i = i + y + x
-    j = j + y
+  for i = 1, remainder do
+    table.insert(result, lines[chunk_count * lang_num + i])
   end
+
+  vim_api.nvim_buf_set_lines(0, a.line1 - 1, a.line2, false, result)
 end
 
 ---@param s string
