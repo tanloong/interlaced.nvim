@@ -50,8 +50,11 @@ _H.upward = function(lineno, here)
 
   vim_api.nvim_win_set_cursor(0, here)
   if vim_api.nvim__redraw ~= nil then
-    vim_api.nvim__redraw({ win = 0, cursor = true })
-    vim_cmd "redraw"
+    vim_api.nvim__redraw({ win = 0, flush = true })
+    -- fix the screen is not updated to respect `scrolloff` when cursor is at
+    -- bottom joining a line from below that occupies multiple screen-lines.
+    vim_cmd "normal! jk"
+    vim_api.nvim__redraw({ win = 0, cursor = true, flush = true })
   end
 
   while lineno <= last_lineno do
@@ -122,8 +125,11 @@ _H.upward_pair = function(lineno, here)
 
   vim_api.nvim_win_set_cursor(0, here)
   if vim_api.nvim__redraw ~= nil then
-    vim_api.nvim__redraw({ win = 0, cursor = true })
-    vim_cmd "redraw"
+    vim_api.nvim__redraw({ win = 0, flush = true })
+    -- fix the screen is not updated to respect `scrolloff` when cursor is at
+    -- bottom joining a line from below that occupies multiple screen-lines.
+    vim_cmd "normal! jk"
+    vim_api.nvim__redraw({ win = 0, cursor = true, flush = true })
   end
 
   while lineno <= last_lineno do
