@@ -36,29 +36,20 @@ _H.delete_trailing_empty_lines = function()
   end
 end
 
----Push current line up to the chunk above, joining to the end of its counterpart
----@param a table
-M.cmd.PushUp = function(a)
-  local lineno
-  if type(a) == "table" and type(a.lineno) == "number" then
-    lineno = a.lineno
-  else
-    lineno = vim_fn.line(".")
-  end
-
-  if lineno < (M.config.lang_num + 1) or lineno % (M.config.lang_num + 1) == 0 then return end
-
+_H.upward = function(lineno, here)
   _H.append_to_3_lines_above(lineno)
 
   lineno = lineno + (M.config.lang_num + 1)
   local last_lineno = vim_fn.line("$")
 
+  local soft_last_lineno = math.min(last_lineno, lineno + 300 * (M.config.lang_num + 1))
+  while lineno <= soft_last_lineno do
+    setline(lineno - (M.config.lang_num + 1), getline(lineno))
+    lineno = lineno + (M.config.lang_num + 1)
+  end
+
+  vim_api.nvim_win_set_cursor(0, here)
   if vim_api.nvim__redraw ~= nil then
-    local soft_last_lineno = math.min(last_lineno, lineno + 300 * (M.config.lang_num + 1))
-    while lineno <= soft_last_lineno do
-      setline(lineno - (M.config.lang_num + 1), getline(lineno))
-      lineno = lineno + (M.config.lang_num + 1)
-    end
     vim_api.nvim__redraw({ win = 0, cursor = true })
     vim_cmd "redraw"
   end
@@ -69,7 +60,42 @@ M.cmd.PushUp = function(a)
   end
 
   setline(lineno - (M.config.lang_num + 1), "")
+end
 
+---Push current line up to the chunk above, joining to the end of its counterpart
+---@param a table
+M.cmd.PushUp = function(a)
+  local here, lineno
+  if type(a) == "table" and type(a.lineno) == "number" then
+    lineno = a.lineno
+    here = { lineno, 1 }
+  else
+    here = vim_api.nvim_win_get_cursor(0)
+    lineno = here[1]
+  end
+
+  if lineno < (M.config.lang_num + 1) or lineno % (M.config.lang_num + 1) == 0 then return end
+
+  _H.upward(lineno, here)
+  _H.delete_trailing_empty_lines()
+  if M.config.auto_save then vim_cmd("w") end
+end
+
+---Pull the counterpart line from the chunk below up to the end of current line
+---@param a table
+M.cmd.PullBelow = function(a)
+  local here, lineno
+  if type(a) == "table" and type(a.lineno) == "number" then
+    lineno = a.lineno
+    here = { lineno, 1 }
+  else
+    here = vim_api.nvim_win_get_cursor(0)
+    lineno = here[1]
+  end
+
+  if lineno < (M.config.lang_num + 1) or lineno % (M.config.lang_num + 1) == 0 then return end
+
+  _H.upward(lineno + (M.config.lang_num + 1), here)
   _H.delete_trailing_empty_lines()
   if M.config.auto_save then vim_cmd("w") end
 end
@@ -123,21 +149,6 @@ M.cmd.PushUpPair = function()
 
   _H.delete_trailing_empty_lines()
   if M.config.auto_save then vim_cmd("w") end
-end
-
----Pull the counterpart line from the chunk below up to the end of current line
----@param a table
-M.cmd.PullBelow = function(a)
-  local here = vim_api.nvim_win_get_cursor(0)
-  local lineno
-  if type(a) == "table" and type(a.lineno) == "number" then
-    lineno = a.lineno
-  else
-    lineno = here[1]
-  end
-
-  M.cmd.PushUp { lineno = lineno + M.config.lang_num + 1 }
-  vim_api.nvim_win_set_cursor(0, here)
 end
 
 ---Pull the chunk below up to current chunk, joining each line to the end of the corresponding line
@@ -425,14 +436,14 @@ _H.locate_unaligned = function(direction)
 
         if vim.tbl_count(group_count1) ~= vim.tbl_count(group_count2) then
           vim_api.nvim_win_set_cursor(0, { l, 1 })
-          vim_api.nvim_feedkeys("zz", "n", true)
+          vim_cmd "normal! zz"
           logger.info("Jumped over " .. math.abs(l - lineno_orig) .. " lines")
           return
         end
         for k1, _ in pairs(group_count1) do
           if group_count2[k1] == nil then
             vim_api.nvim_win_set_cursor(0, { l, 1 })
-            vim_api.nvim_feedkeys("zz", "n", true)
+            vim_cmd "normal! zz"
             logger.info("Jumped over " .. math.abs(l - lineno_orig) .. " lines")
             return
           end
