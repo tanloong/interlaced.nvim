@@ -42,7 +42,8 @@ _H.upward = function(lineno, here)
   lineno = lineno + (M.config.lang_num + 1)
   local last_lineno = vim_fn.line("$")
 
-  local soft_last_lineno = math.min(last_lineno, lineno + 300 * (M.config.lang_num + 1))
+  local soft_last_lineno = math.min(last_lineno, lineno + 200 * (M.config.lang_num + 1))
+
   while lineno <= soft_last_lineno do
     setline(lineno - (M.config.lang_num + 1), getline(lineno))
     lineno = lineno + (M.config.lang_num + 1)
@@ -56,6 +57,7 @@ _H.upward = function(lineno, here)
     vim_cmd "normal! jk"
     vim_api.nvim__redraw({ win = 0, cursor = true, flush = true })
   end
+
 
   while lineno <= last_lineno do
     setline(lineno - (M.config.lang_num + 1), getline(lineno))
@@ -115,7 +117,7 @@ _H.upward_pair = function(lineno, here)
   lineno = lineno + (M.config.lang_num + 1)
   local last_lineno = vim_fn.line("$")
 
-  local soft_last_lineno = math.min(last_lineno, lineno + 300 * (M.config.lang_num + 1))
+  local soft_last_lineno = math.min(last_lineno, lineno + 200 * (M.config.lang_num + 1))
   while lineno <= soft_last_lineno do
     for offset = 1, M.config.lang_num do
       setline((lineno + offset) - (M.config.lang_num + 1), getline(lineno + offset))
@@ -178,7 +180,7 @@ M.cmd.PushDownRightPart = function(lnum)
   local last_lineno = vim_fn.line("$")
   for _ = 1, M.config.lang_num + 1 do vim_fn.append(last_lineno, "") end
   local last_counterpart_lineno = last_lineno - (last_lineno - curr_lineno) % (M.config.lang_num + 1)
-  local soft_last_counterpart_lineno = math.min(last_counterpart_lineno, curr_lineno + 300 * (M.config.lang_num + 1))
+  local soft_last_counterpart_lineno = math.min(last_counterpart_lineno, curr_lineno + 200 * (M.config.lang_num + 1))
   local lineno = soft_last_counterpart_lineno - (M.config.lang_num + 1)
   local cache_line = getline(soft_last_counterpart_lineno)
 
@@ -201,8 +203,7 @@ M.cmd.PushDownRightPart = function(lnum)
   setline(curr_lineno + (M.config.lang_num + 1), after_cursor)
 
   if vim_api.nvim__redraw ~= nil then
-    vim_api.nvim__redraw({ win = 0, cursor = true })
-    vim_cmd "redraw"
+    vim_api.nvim__redraw({ win = 0, cursor = true, flush = true })
   end
 
   lineno = last_counterpart_lineno
@@ -224,7 +225,7 @@ end
 
 ---@param lnum integer
 M.cmd.LeaveAlone = function(lnum)
-  curr_lineno = lnum or vim_fn.line(".")
+  local curr_lineno = lnum or vim_fn.line(".")
   local languid = curr_lineno % (M.config.lang_num + 1)
   if languid == 0 then return end
 
@@ -234,25 +235,24 @@ M.cmd.LeaveAlone = function(lnum)
   local last_chunk_prev_lineno = last_lineno - last_lineno % (M.config.lang_num + 1)
   local curr_chunk_prev_lineno = curr_lineno - languid
   local soft_last_chunk_prev_lineno = math.min(last_chunk_prev_lineno,
-    curr_chunk_prev_lineno + 300 * (M.config.lang_num + 1))
+    curr_chunk_prev_lineno + 200 * (M.config.lang_num + 1))
   local lineno = soft_last_chunk_prev_lineno - (M.config.lang_num + 1)
   local cache_lines = vim_api.nvim_buf_get_lines(0, soft_last_chunk_prev_lineno,
     soft_last_chunk_prev_lineno + (M.config.lang_num + 1), false)
 
-  while lineno > curr_chunk_prev_lineno do
+  while lineno >= curr_chunk_prev_lineno do
     for offset = 1, M.config.lang_num do
       if offset ~= languid then setline((lineno + offset) + (M.config.lang_num + 1), getline(lineno + offset)) end
     end
     lineno = lineno - (M.config.lang_num + 1)
   end
   for offset = 1, M.config.lang_num do
-    if offset ~= languid then setline(lineno + offset, "-") end
+    if offset ~= languid then setline(curr_chunk_prev_lineno + offset, "-") end
   end
 
   M.cmd.NavigateDown()
   if vim_api.nvim__redraw ~= nil then
-    vim_api.nvim__redraw({ win = 0, cursor = true })
-    vim_cmd "redraw"
+    vim_api.nvim__redraw({ win = 0, cursor = true, flush = true })
   end
 
   lineno = last_chunk_prev_lineno
