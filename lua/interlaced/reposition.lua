@@ -75,7 +75,9 @@ M.cmd.PushUp = function(a)
 end
 
 ---Helper for PushUpPair and PullBelowPair
-_H.upward_pair = function(lineno)
+---@param lineno integer
+---@param here integer[]
+_H.upward_pair = function(lineno, here)
   -- locate first chunk line
   lineno = lineno - lineno % (M.config.lang_num + 1)
 
@@ -84,14 +86,16 @@ _H.upward_pair = function(lineno)
   lineno = lineno + (M.config.lang_num + 1)
   local last_lineno = vim_fn.line("$")
 
-  if vim_api.nvim__redraw ~= nil then
-    local soft_last_lineno = math.min(last_lineno, lineno + 300 * (M.config.lang_num + 1))
-    while lineno <= soft_last_lineno do
-      for offset = 1, M.config.lang_num do
-        setline((lineno + offset) - (M.config.lang_num + 1), getline(lineno + offset))
-      end
-      lineno = lineno + (M.config.lang_num + 1)
+  local soft_last_lineno = math.min(last_lineno, lineno + 300 * (M.config.lang_num + 1))
+  while lineno <= soft_last_lineno do
+    for offset = 1, M.config.lang_num do
+      setline((lineno + offset) - (M.config.lang_num + 1), getline(lineno + offset))
     end
+    lineno = lineno + (M.config.lang_num + 1)
+  end
+
+  vim_api.nvim_win_set_cursor(0, here)
+  if vim_api.nvim__redraw ~= nil then
     vim_api.nvim__redraw({ win = 0, cursor = true })
     vim_cmd "redraw"
   end
@@ -115,12 +119,10 @@ M.cmd.PushUpPair = function()
   local lineno = here[1]
   if lineno <= (M.config.lang_num + 1) then return end
 
-  _H.upward_pair(lineno)
+  _H.upward_pair(lineno, here)
 
   _H.delete_trailing_empty_lines()
   if M.config.auto_save then vim_cmd("w") end
-
-  vim_api.nvim_win_set_cursor(0, here)
 end
 
 ---Pull the counterpart line from the chunk below up to the end of current line
@@ -145,12 +147,10 @@ M.cmd.PullBelowPair = function()
   local lineno = here[1] + (M.config.lang_num + 1)
   if vim_fn.line("$") - lineno <= (M.config.lang_num) then return end
 
-  _H.upward_pair(lineno)
+  _H.upward_pair(lineno, here)
 
   _H.delete_trailing_empty_lines()
   if M.config.auto_save then vim_cmd("w") end
-
-  vim_api.nvim_win_set_cursor(0, here)
 end
 
 ---Push the text on the right side of the cursor in the current line down to the chunk below
@@ -232,6 +232,7 @@ M.cmd.LeaveAlone = function(lnum)
     if offset ~= languid then setline(lineno + offset, "-") end
   end
 
+  M.cmd.NavigateDown()
   if vim_api.nvim__redraw ~= nil then
     vim_api.nvim__redraw({ win = 0, cursor = true })
     vim_cmd "redraw"
@@ -252,7 +253,6 @@ M.cmd.LeaveAlone = function(lnum)
   end
 
   _H.delete_trailing_empty_lines()
-  M.cmd.NavigateDown()
 end
 
 ---Move cursor to the chunk below at the counterpart of current line
