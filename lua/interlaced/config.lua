@@ -41,17 +41,20 @@ local config = {
   lang_num = 2,
   ---@type function|nil
   enable_keybindings_hook = function()
-    -- It costs too much RAM to remember changes of an interlaced buffer,
-    -- because re-position changes every line from the cursor below, and the
-    -- builtin undo mechanism stores all of that. One `PushUp` at the beginning
-    -- of an interlaced buffer with 190k lines increases memory use by 100M. It
-    -- is recommended to turn off the builtin undo history to avoid memory
-    -- creep. The plugin manages an undo history itself by remembering not the
-    -- text changes but re-position operations. You can use that to undo and
-    -- redo through e.g. the keybindings set above on `rpst.cmd.Undo` and
-    -- `rpst.cmd.Redo`. Note that the plugin only remembers re-position
-    -- operations, other normal text changes like inserting are ignored, so
-    -- take care.
+    -- 1. It costs too much RAM to remember changes of an interlaced buffer,
+    --    because re-position changes every line from the cursor below, and the
+    --    builtin undo mechanism stores all of that. One `ItPushUp` at the
+    --    beginning of an interlaced buffer with 190k lines increases memory
+    --    use by 100M. It is recommended to turn off the builtin undo history
+    --    to avoid memory creep.
+    -- 2. The plugin manages an undo history itself by remembering not the text
+    --    changes but re-position operations. You can use that to undo and redo
+    --    through e.g., the keybindings set above on `rpst.cmd.Undo` and
+    --    `rpst.cmd.Redo`.
+    -- 3. Note that the plugin only remembers re-position operations, i.e.,
+    --    `ItPushUp(Pair)`, `ItPullBelow(Pair)`, `ItPushDown(RightPart)`, and
+    --    `ItLeaveAlone`. Others like `ItInterlace`, `ItDeinterlace` or normal
+    --    text changes like inserting, pasting are forgotten, so take care :).
     vim.opt_local.undolevels = -1
   end,
   ---@type function|nil

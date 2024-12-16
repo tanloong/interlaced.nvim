@@ -295,12 +295,12 @@ M.cmd.PushDownRightPart = function(lnum, cnum, store)
     vim_api.nvim__redraw({ win = 0, cursor = true, flush = true })
   end
 
-  lineno = last_counterpart_lineno
-  while lineno > soft_last_counterpart_lineno do
-    setline(lineno + (M.config.lang_num + 1), getline(lineno))
-    lineno = lineno - (M.config.lang_num + 1)
-  end
   if curr_lineno ~= last_counterpart_lineno then
+    lineno = last_counterpart_lineno
+    while lineno > soft_last_counterpart_lineno do
+      setline(lineno + (M.config.lang_num + 1), getline(lineno))
+      lineno = lineno - (M.config.lang_num + 1)
+    end
     setline(soft_last_counterpart_lineno + (M.config.lang_num + 1), cache_line)
   end
 
