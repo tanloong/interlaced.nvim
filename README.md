@@ -13,33 +13,14 @@ Text re-positioning for bilingual sentence alignment.
 ```lua
 {
   "tanloong/interlaced.nvim",
-  config = function()
-    require("interlaced").setup(
-      {
-        mappings = {
-          PushUp = ",",
-          PushUpPair = "<",
-          PullUp = ".",
-          PullUpPair = ">",
-          PushDownRightPart = "d",
-          PushDown = "D",
-          NavigateDown = "J",
-          NavigateUp = "K"
-        },
-        -- automatically enable mappings for *interlaced.txt files
-        setup_mappings_now = (((vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())):find("interlaced%.txt$")) ~= nil),
-        -- sentence separator to insert between when push- or pull-ing up
-        separators = { ["1"] = "", ["2"] = " " },
-        -- save on text reposition, i.e., pushing, pulling, sentence splitting.
-        auto_save = true,
-        cmd_prefix = "It",
-        lang_num = 2,
-      }
-    )
-  end,
+  config = function() require("interlaced").setup {} end,
   ft = "text",
 }
 ```
+
+## Configuration
+
+https://github.com/tanloong/interlaced.nvim/blob/d88bcc04be326e1fc11f6fd66545974284f62db3/lua/interlaced/config.lua#L1-L64
 
 ## Commands
 
