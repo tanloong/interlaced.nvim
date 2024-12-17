@@ -20,7 +20,7 @@ Text re-positioning for bilingual sentence alignment.
 
 ## Configuration
 
-https://github.com/tanloong/interlaced.nvim/blob/d88bcc04be326e1fc11f6fd66545974284f62db3/lua/interlaced/config.lua#L1-L64
+https://github.com/tanloong/interlaced.nvim/blob/4f1e37eeb6d615171aab902171b3d71a555fa396/lua/interlaced/config.lua#L1-L66
 
 ## Commands
 

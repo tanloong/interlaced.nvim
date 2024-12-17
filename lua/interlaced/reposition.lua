@@ -431,6 +431,53 @@ _H.put_together = function(lnum, store)
   end
 end
 
+---@param lnum integer|nil
+---@param store boolean|nil
+M.cmd.SwapWithAbove = function(lnum, store)
+  local curr_lineno = lnum or vim_fn.line(".")
+  if curr_lineno % (M.config.lang_num + 1) == 0 or curr_lineno <= M.config.lang_num then return end
+  if store == nil then store = true end
+
+  local cntrprt_lineno = curr_lineno - (M.config.lang_num + 1)
+  local cntrprt_line = getline(cntrprt_lineno)
+  setline(cntrprt_lineno, getline(curr_lineno))
+  setline(curr_lineno, cntrprt_line)
+
+  vim_fn.cursor(cntrprt_lineno, 1)
+  if M.config.auto_save then vim_cmd("w") end
+
+  if store then
+    _H.store_undo {
+      function() M.cmd.SwapWithAbove(curr_lineno, false) end,
+      function() M.cmd.SwapWithAbove(curr_lineno, false) end,
+    }
+  end
+end
+
+
+---@param lnum integer|nil
+---@param store boolean|nil
+M.cmd.SwapWithBelow = function(lnum, store)
+  local curr_lineno = lnum or vim_fn.line(".")
+  if curr_lineno % (M.config.lang_num + 1) == 0 or vim_fn.line("$") - curr_lineno + 1 <= M.config.lang_num then return end
+  if store == nil then store = true end
+
+  local cntrprt_lineno = curr_lineno + (M.config.lang_num + 1)
+  local cntrprt_line = getline(cntrprt_lineno)
+  setline(cntrprt_lineno, getline(curr_lineno))
+  setline(curr_lineno, cntrprt_line)
+
+  vim_fn.cursor(cntrprt_lineno, 1)
+  if M.config.auto_save then vim_cmd("w") end
+
+  if store then
+    _H.store_undo {
+      function() M.cmd.SwapWithBelow(curr_lineno, false) end,
+      function() M.cmd.SwapWithBelow(curr_lineno, false) end,
+    }
+  end
+end
+
 ---@param t function[] the first func is for redo, second undo
 _H.store_undo = function(t)
   if #M._undos >= 100 then table.remove(M._undos, 1) end

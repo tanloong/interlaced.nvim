@@ -18,6 +18,8 @@ local config = {
     { "n", "d",     rpst.cmd.PushDownRightPart, { noremap = true, buffer = true, nowait = true } },
     { "n", "D",     rpst.cmd.PushDown,          { noremap = true, buffer = true, nowait = true } },
     { "n", "s",     rpst.cmd.LeaveAlone,        { noremap = true, buffer = true, nowait = true } },
+    { "n", "[e",    rpst.cmd.SwapWithAbove,     { noremap = true, buffer = true, nowait = true } },
+    { "n", "]e",    rpst.cmd.SwapWithBelow,     { noremap = true, buffer = true, nowait = true } },
     { "n", "u",     rpst.cmd.Undo,              { noremap = true, buffer = true, nowait = true } },
     { "n", "<C-r>", rpst.cmd.Redo,              { noremap = true, buffer = true, nowait = true } },
     { "n", "J",     rpst.cmd.NavigateDown,      { noremap = true, buffer = true, nowait = true } },

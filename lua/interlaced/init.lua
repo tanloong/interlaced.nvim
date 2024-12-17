@@ -302,6 +302,10 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "PushUp", rpst.cmd.PushUp, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "PushUpPair", rpst.cmd.PushUpPair, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "LeaveAlone", rpst.cmd.LeaveAlone, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "SwapWithAbove", rpst.cmd.SwapWithAbove, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "SwapWithBelow", rpst.cmd.SwapWithBelow, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "Undo", rpst.cmd.Undo, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "Redo", rpst.cmd.Redo, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "SplitChineseSentences", rpst.cmd.SplitChineseSentences,
     { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "SplitEnglishSentences", rpst.cmd.SplitEnglishSentences,
