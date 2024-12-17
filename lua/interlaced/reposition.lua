@@ -381,6 +381,7 @@ M.cmd.LeaveAlone = function(lnum, store)
   end
 end
 
+---Inverse of LeaveAlone
 ---@param lnum integer
 ---@param store boolean|nil
 _H.put_together = function(lnum, store)

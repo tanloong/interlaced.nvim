@@ -2,6 +2,11 @@ related efforts:
   https://github.com/azabiong/vim-highlighter/blob/main/autoload/highlighter.vim
   https://github.com/inkarkat/vim-mark
 
+:ItInterlaceAsL int filepath1 [filepath ...]
+
+unit test
+  a blog: https://mrcjkb.dev/posts/2023-06-06-luarocks-test.html
+  busted: https://github.com/lunarmodules/busted
 
 等vim.api.nvim__redraw稳定之后移除 reposition.lua 中的 if vim_api.nvim__redraw ~= nil then 保护
 
