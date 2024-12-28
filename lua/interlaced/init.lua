@@ -197,7 +197,6 @@ M.cmd.Dump = function(a)
   end
   local data = {
     curpos = vim_api.nvim_win_get_cursor(0),
-    path = vim_fn.expand("%:p"),
     matches = vim_fn.getmatches(),
     config = {
       language_separator = M.config.language_separator,
@@ -234,10 +233,6 @@ M.cmd.Load = function(a)
   ok, ret = pcall(vim.json.decode, data)
   if not ok then return end
 
-  if ret.path ~= nil and ret.path ~= vim_fn.expand("%:p") then
-    logger.info("Will not load " .. path .. " which does not belong to current file.")
-    return
-  end
   if ret.curpos ~= nil then
     vim_api.nvim_win_set_cursor(0, ret.curpos)
   end
