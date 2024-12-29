@@ -21,6 +21,7 @@ local M = {
   _H = _H,
   _orig_mappings = {},
   _is_mappings_on = false,
+  _ns_id = nil,
   -- A list of regex patterns (named entities, numbers, dates, etc) users want to highlight
   -- :h matchadd()
   -- Matching is case sensitive and magic, unless case sensitivity
@@ -108,6 +109,7 @@ M.cmd.EnableKeybindings = function()
     _H.store_orig_mapping(lhs, mode)
     keyset(mode, lhs, rhs, opts)
   end
+  _H.show_chunknr()
   logger.info("Keybindings on")
   M._is_mappings_on = true
 end
@@ -135,6 +137,47 @@ M.cmd.DisableKeybindings = function()
   logger.info("Keybindings off")
   M._is_mappings_on = false
   M._orig_mappings = {}
+end
+
+_H.show_chunknr = function()
+  if M._showing_chunknr == true then return end
+  if M._ns_id == nil then M._ns_id = vim_api.nvim_create_namespace("interlaced") end
+
+  local last_lineno = vim_fn.line("$")
+  local text
+  local opts = { right_gravity = false, virt_text_pos = "inline" }
+
+  local chunkno = 1
+  -- nvim_buf_set_extmark uses 0-based, end-exclusive index, thus - 1
+  for lineno = 0, last_lineno - 2 * M.config.lang_num, M.config.lang_num + 1 do
+    opts.virt_text = { { string.format("%s ", chunkno), "LineNr" } }
+    for offset = 1, M.config.lang_num do
+      vim_api.nvim_buf_set_extmark(0, M._ns_id, lineno + offset - 1, 0, opts)
+    end
+    vim_api.nvim_buf_set_extmark(0, M._ns_id, lineno + M.config.lang_num, 0, opts)
+    chunkno = chunkno + 1
+  end
+
+  M._showing_chunknr = true
+end
+
+_H.clear_chunknr = function()
+  if M._ns_id == nil then return end
+
+  for _, m in ipairs(vim_api.nvim_buf_get_extmarks(0, M._ns_id, 0, -1, {})) do
+    vim_api.nvim_buf_del_extmark(0, M._ns_id, m[1])
+  end
+  M._showing_chunknr = false
+end
+
+M.cmd.ToggleChunkNr = function()
+  if M._showing_chunknr == nil then M._showing_chunknr = false end
+
+  if M._showing_chunknr then
+    _H.clear_chunknr()
+  else
+    _H.show_chunknr()
+  end
 end
 
 M.cmd.SetSeparator = function(a)
@@ -168,6 +211,7 @@ M.cmd.SetSeparator = function(a)
   vim.print("L" .. l .. " separator: '" .. sep .. "'")
 end
 
+
 M.cmd.SetLangNum = function(a)
   -- :ItSetLangNum ?
   -- :ItSetLangNum
@@ -184,6 +228,9 @@ M.cmd.SetLangNum = function(a)
   while #M.config.language_separator < n do
     table.insert(M.config.language_separator, " ")
   end
+
+  _H.clear_chunknr()
+  _H.show_chunknr()
 
   vim.print("Language number: " .. M.config.lang_num)
 end
@@ -310,6 +357,7 @@ M.setup = function(opts)
     { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "SplitEnglishSentences", rpst.cmd.SplitEnglishSentences,
     { nargs = 0, range = "%" })
+  create_command(M.config.cmd_prefix .. "ToggleChunkNr", M.cmd.ToggleChunkNr, { nargs = 0 })
 end
 
 return M

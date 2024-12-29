@@ -86,6 +86,8 @@ https://github.com/tanloong/interlaced.nvim/blob/20d0ff5cbd40361b50a9e8f02938f29
 
 **:[count]ItRedo** undoes the last `ItUnDo`.
 
-**:ItDump [filepath]** saves workspace to `filepath`: cursor position, matches, language separator, and language number. Undo and redo lists are not saved. Uses `./.interlaced.json` when called without argument.
+**:ItToggleChunkNr** shows/hides chunk number at the right-hand side.
+
+**:ItDump [filepath]** saves workspace to `filepath`: cursor position, matches, language separator, and `lang_num`. Undo and redo lists are not saved. Uses `./.interlaced.json` when called without argument.
 
 **:ItLoad [filepath]** loads workspace from `filepath`. Uses `./.interlaced.json` when called without argument.

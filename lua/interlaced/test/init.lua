@@ -3,6 +3,9 @@
 local pkg_name = "interlaced"
 
 local function dev_reload()
+  require(pkg_name)._showing_chunknr = true
+  require(pkg_name).cmd.ToggleChunkNr()
+
   for k, _ in pairs(package.loaded) do
     if k:sub(1, #pkg_name) == pkg_name then
       package.loaded[k] = nil
