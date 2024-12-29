@@ -78,13 +78,13 @@ https://github.com/tanloong/interlaced.nvim/blob/20d0ff5cbd40361b50a9e8f02938f29
 
 **:ItSetSeparator {num} {str}** changes sentence separator to `str` for the `num`th language, i.e., what should be inserted between on `ItPushUp(Pair)` and `ItPullBelow(Pair)`. When called without argument or with a single `?` it shows current values. 
 
-**:ItNavigateDown** moves cursor down by `language number + 1` lines.
+**:[count]ItNavigateDown** moves cursor down by `lang_num + 1` lines.
 
-**:ItNavigateUp** moves cursor up by `language number + 1` lines.
+**:[count]ItNavigateUp** moves cursor up by `lang_num + 1` lines.
 
-**:ItUndo** undoes the last re-positioning action. The undo list remembers at most 100 actions and forgets oldest ones thereafter.
+**:[count]ItUndo** undoes the last re-positioning action. The undo list remembers at most 100 actions and forgets oldest ones thereafter.
 
-**:ItRedo** undoes the last `ItUnDo`.
+**:[count]ItRedo** undoes the last `ItUnDo`.
 
 **:ItDump [filepath]** saves workspace to `filepath`: cursor position, matches, language separator, and language number. Undo and redo lists are not saved. Uses `./.interlaced.json` when called without argument.
 

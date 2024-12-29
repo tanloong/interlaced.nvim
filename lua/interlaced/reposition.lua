@@ -492,37 +492,77 @@ _H.store_redo = function(t)
   table.insert(M._redos, t)
 end
 
-M.cmd.Undo = function()
-  local t = table.remove(M._undos)
-  if t ~= nil then
-    t[2]()
-    _H.store_redo(t)
+M.cmd.Undo = function(a)
+  local c, t
+  if a == nil then
+    --called from keymapping
+    --reference: https://www.reddit.com/r/vim/comments/bj0fip/comment/em4i23z/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button
+    c = vim.v.count1
   else
-    logger.info("Already at oldest change")
+    --called from command-line
+    c = a.count ~= nil and a.count or 1
+  end
+  for _ = 1, c do
+    t = table.remove(M._undos)
+    if t ~= nil then
+      t[2]()
+      _H.store_redo(t)
+    else
+      logger.info("Already at oldest change")
+    end
   end
 end
 
-M.cmd.Redo = function()
-  local t = table.remove(M._redos)
-  if t ~= nil then
-    t[1]()
-    _H.store_undo(t)
+M.cmd.Redo = function(a)
+  local c, t
+  if a == nil then
+    --called from keymapping
+    --reference: https://www.reddit.com/r/vim/comments/bj0fip/comment/em4i23z/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button
+    c = vim.v.count1
   else
-    logger.info("Already at newest change")
+    --called from command-line
+    c = a.count ~= nil and a.count or 1
+  end
+  for _ = 1, c do
+    t = table.remove(M._redos)
+    if t ~= nil then
+      t[1]()
+      _H.store_undo(t)
+    else
+      logger.info("Already at newest change")
+    end
   end
 end
 
 ---Move cursor to the chunk below at the counterpart of current line
-M.cmd.NavigateDown = function()
-  vim_cmd([[normal! 0]] .. (M.config.lang_num + 1) .. "j")
+M.cmd.NavigateDown = function(a)
+  local c
+  if a == nil then
+    --called from keymapping
+    --reference: https://www.reddit.com/r/vim/comments/bj0fip/comment/em4i23z/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button
+    c = vim.v.count1
+  else
+    --called from command-line
+    c = a.count ~= nil and a.count or 1
+  end
+  vim_cmd([[normal! 0]] .. c * (M.config.lang_num + 1) .. "j")
 end
 
 ---Move cursor to the chunk above at the counterpart of current line
-M.cmd.NavigateUp = function()
-  vim_cmd([[normal! 0]] .. (M.config.lang_num + 1) .. "k")
+M.cmd.NavigateUp = function(a)
+  local c
+  if a == nil then
+    --called from keymapping
+    --reference: https://www.reddit.com/r/vim/comments/bj0fip/comment/em4i23z/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button
+    c = vim.v.count1
+  else
+    --called from command-line
+    c = a.count ~= nil and a.count or 1
+  end
+  vim_cmd([[normal! 0]] .. c * (M.config.lang_num + 1) .. "k")
 end
 
----:[range]ItDeInterlace, works on the whole buffer if range is not provided
+---:[range]ItDeInterlace [num], works on the whole buffer if range is not provided
 ---upper- and lower-most empty lines are ignored
 ---requires the range is paired, [(, L2_1), (L1_2, L2_2), (L1_3, L2_3), ...] will make the buffer chaotic
 ---@param a table
