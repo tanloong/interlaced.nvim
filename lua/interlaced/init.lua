@@ -14,7 +14,7 @@ local utils = require("interlaced.utils")
 local logger = require("interlaced.logger")
 
 -- NOTE: Develop test mode !!
-require("interlaced.test")
+require("interlaced._reload")
 
 local _H = {}
 local M = {
@@ -109,7 +109,6 @@ M.cmd.EnableKeybindings = function()
     _H.store_orig_mapping(lhs, mode)
     keyset(mode, lhs, rhs, opts)
   end
-  _H.show_chunknr()
   logger.info("Keybindings on")
   M._is_mappings_on = true
 end
@@ -139,21 +138,17 @@ M.cmd.DisableKeybindings = function()
   M._orig_mappings = {}
 end
 
-_H.show_chunknr = function()
+M.ShowChunkNr = function()
   if M._showing_chunknr == true then return end
   if M._ns_id == nil then M._ns_id = vim_api.nvim_create_namespace("interlaced") end
 
   local last_lineno = vim_fn.line("$")
-  local text
-  local opts = { right_gravity = false, virt_text_pos = "inline" }
-
+  local opts = { right_gravity = true, virt_text_win_col = 0 , hl_mode = "combine" }
   local chunkno = 1
+  local text
   -- nvim_buf_set_extmark uses 0-based, end-exclusive index, thus - 1
   for lineno = 0, last_lineno - 2 * M.config.lang_num, M.config.lang_num + 1 do
     opts.virt_text = { { string.format("%s ", chunkno), "LineNr" } }
-    for offset = 1, M.config.lang_num do
-      vim_api.nvim_buf_set_extmark(0, M._ns_id, lineno + offset - 1, 0, opts)
-    end
     vim_api.nvim_buf_set_extmark(0, M._ns_id, lineno + M.config.lang_num, 0, opts)
     chunkno = chunkno + 1
   end
@@ -161,7 +156,7 @@ _H.show_chunknr = function()
   M._showing_chunknr = true
 end
 
-_H.clear_chunknr = function()
+M.ClearChunkNr = function()
   if M._ns_id == nil then return end
 
   for _, m in ipairs(vim_api.nvim_buf_get_extmarks(0, M._ns_id, 0, -1, {})) do
@@ -174,9 +169,9 @@ M.cmd.ToggleChunkNr = function()
   if M._showing_chunknr == nil then M._showing_chunknr = false end
 
   if M._showing_chunknr then
-    _H.clear_chunknr()
+    M.ClearChunkNr()
   else
-    _H.show_chunknr()
+    M.ShowChunkNr()
   end
 end
 

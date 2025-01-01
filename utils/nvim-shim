@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# https://hiphish.github.io/blog/2024/01/29/testing-neovim-plugins-with-busted/
+
+# Isolation from the user's own configuration
+export XDG_CONFIG_HOME='tests/xdg/config/'
+export XDG_STATE_HOME='tests/xdg/local/state/'
+export XDG_DATA_HOME='tests/xdg/local/share/'
+
+plugin_folder=$(realpath "$(cd "$(dirname "$0")" && pwd)"/../)
+pack_folder=${XDG_DATA_HOME}/nvim/site/pack/testing/start/
+
+mkdir -p "$pack_folder"
+ln -s -f "$plugin_folder" "$pack_folder"
+nvim --cmd 'set loadplugins' -l "$@"
+exit_code=$?
+
+rm -rf "$pack_folder"
+exit $exit_code

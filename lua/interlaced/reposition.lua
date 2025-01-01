@@ -242,7 +242,7 @@ M.cmd.PushUpPair = function()
   local here = vim_api.nvim_win_get_cursor(0)
 
   local lineno = here[1]
-  if lineno <= (M.config.lang_num + 1) then return end
+  if lineno <= (M.config.lang_num + 1) or lineno % (M.config.lang_num + 1) == 0 then return end
 
   _H.upward_pair(lineno, here, true)
 end
@@ -605,13 +605,12 @@ end
 ---@return nil
 _H.SplitHelper = function(regex, a)
   -- cmd([[saveas! %.splitted]])
-  for i = a.line2, a.line1, -1 do
-    local sents = vim_fn.split(getline(i), regex)
-
-    if #sents > 1 then
-      vim_api.nvim_buf_set_lines(0, i - 1, i, true, sents)
-    end
+  local lines = vim_api.nvim_buf_get_lines(0, a.line1 - 1, a.line2, false)
+  local sents = {}
+  for _, line in ipairs(lines) do
+    vim.list_extend(sents, vim_fn.split(line, regex))
   end
+  vim_api.nvim_buf_set_lines(0, 0, -1, false, sents)
   if M.config.auto_save then
     vim_cmd("w")
   end
@@ -632,7 +631,7 @@ end
 ---@param a table
 ---@return nil
 M.cmd.SplitEnglishSentences = function(a)
-  local regex = [[\v%(%(%(<al)@<!%(\u\l{,2})@<!(\.\a)@<!\.|[!?])+['’"”]?)%(\s|$)\zs]]
+  local regex = [[\v%(%(%(<al)@<!%(\u\l{,2})@<!(\.\a)@<!\.|[!?])+['’"”]?)\zs%(\s+|$)]]
   _H.SplitHelper(regex, a)
 end
 
