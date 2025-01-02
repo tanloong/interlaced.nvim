@@ -263,7 +263,8 @@ end
 ---@param store boolean|nil
 M.cmd.PushDownRightPart = function(lnum, cnum, store)
   local curr_lineno = lnum or vim_fn.line(".")
-  if curr_lineno % (M.config.lang_num + 1) == 0 then return end
+  local languid = curr_lineno % (M.config.lang_num + 1)
+  if languid == 0 then return end
   local curr_colno = cnum or vim_fn.col(".")
   if store == nil then store = true end
 
@@ -284,8 +285,7 @@ M.cmd.PushDownRightPart = function(lnum, cnum, store)
   local after_cursor = curr_line:sub(curr_colno)
   before_cursor = before_cursor:gsub([[%s+$]], "", 1)
   after_cursor = after_cursor:gsub([[^%s+]], "", 1)
-  local languid = tostring(curr_lineno % (M.config.lang_num + 1))
-  local sep = M.config.language_separator[languid]
+  local sep = M.config.language_separator[tostring(languid)]
   before_cursor = vim_fn.substitute(before_cursor, vim_fn.escape(sep, [[\]]) .. [[$]], "", "")
   after_cursor = vim_fn.substitute(after_cursor, [[^]] .. vim_fn.escape(sep, [[\]]), "", "")
   setline(curr_lineno, before_cursor)
@@ -310,6 +310,71 @@ M.cmd.PushDownRightPart = function(lnum, cnum, store)
     _H.store_undo {
       function() M.cmd.PushDownRightPart(curr_lineno, curr_colno, false) end,
       function() M.cmd.PullBelow(curr_lineno, false) end,
+    }
+    M._redos = {}
+  end
+end
+
+---Push the text on the left side of the cursor in the current line up to the chunk above, appending to the end of its couunterpart
+M.cmd.PushUpLeftPart = function(lnum, cnum, store)
+  local curr_lineno = lnum or vim_fn.line(".")
+  local languid = curr_lineno % (M.config.lang_num + 1)
+  if languid == 0 or curr_lineno <= M.config.lang_num then return end
+  local curr_colno = cnum or vim_fn.col(".")
+  if store == nil then store = true end
+
+  -- get left and right parts of curr_lineno
+  local curr_line = getline(curr_lineno)
+  local before_cursor = curr_line:sub(1, curr_colno - 1)
+  local after_cursor = curr_line:sub(curr_colno)
+  before_cursor = before_cursor:gsub([[%s+$]], "", 1)
+  after_cursor = after_cursor:gsub([[^%s+]], "", 1)
+  local sep = M.config.language_separator[tostring(languid)]
+  before_cursor = vim_fn.substitute(before_cursor, vim_fn.escape(sep, [[\]]) .. [[$]], "", "")
+  after_cursor = vim_fn.substitute(after_cursor, [[^]] .. vim_fn.escape(sep, [[\]]), "", "")
+
+  local cntrprt_lineno = curr_lineno - (M.config.lang_num + 1)
+  local cntrprt_line = getline(cntrprt_lineno)
+  setline(cntrprt_lineno, cntrprt_line .. sep .. before_cursor)
+  setline(curr_lineno, after_cursor)
+
+  if M.config.auto_save then vim_cmd("w") end
+  if store then
+    _H.store_undo {
+      function() M.cmd.PushUpLeftPart(curr_lineno, curr_colno, false) end,
+      function() _H.push_down_right_part_join(cntrprt_lineno, #cntrprt_line + #sep + 1, false) end,
+    }
+    M._redos = {}
+  end
+end
+
+_H.push_down_right_part_join = function(lnum, cnum, store)
+  local curr_lineno = lnum or vim_fn.line(".")
+  local languid = curr_lineno % (M.config.lang_num + 1)
+  if languid == 0 or vim_fn.line('$') - curr_lineno < M.config.lang_num then return end
+  local curr_colno = cnum or vim_fn.col(".")
+  if store == nil then store = true end
+
+  local curr_line = getline(curr_lineno)
+  local before_cursor = curr_line:sub(1, curr_colno - 1)
+  local after_cursor = curr_line:sub(curr_colno)
+  before_cursor = before_cursor:gsub([[%s+$]], "", 1)
+  after_cursor = after_cursor:gsub([[^%s+]], "", 1)
+  local sep = M.config.language_separator[tostring(languid)]
+  before_cursor = vim_fn.substitute(before_cursor, vim_fn.escape(sep, [[\]]) .. [[$]], "", "")
+  after_cursor = vim_fn.substitute(after_cursor, [[^]] .. vim_fn.escape(sep, [[\]]), "", "")
+
+
+  local cntrprt_lineno = curr_lineno + (M.config.lang_num + 1)
+  local cntrprt_line = getline(cntrprt_lineno)
+  setline(curr_lineno, before_cursor)
+  setline(cntrprt_lineno, after_cursor .. sep .. cntrprt_line)
+
+  if M.config.auto_save then vim_cmd("w") end
+  if store then
+    _H.store_undo {
+      function() _H.push_down_right_part_join(curr_lineno, curr_colno, false) end,
+      function() M.cmd.PushUpLeftPart(cntrprt_lineno, #after_cursor + #sep + 1, false) end,
     }
     M._redos = {}
   end

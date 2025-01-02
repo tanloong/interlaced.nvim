@@ -60,9 +60,11 @@ https://github.com/tanloong/interlaced.nvim/blob/20d0ff5cbd40361b50a9e8f02938f29
 
 **:ItPushUpPair** ibidem but works every line in the current chunk.
 
+**:ItPushUpLeftPart** appends the text from the beginning of the current line to the cursor position to the end of its counterpart, leaving the current line with the text rightside of the cursor.
+
 **:ItPullBelow** applies **ItPushUp** on the counterpart of the current line at the chunk below.
 
-**:ItPullBelowPair** ibidem but on every line in the current below.
+**:ItPullBelowPair** ibidem but on every line in the chunk below.
 
 **:ItPushDownRightPart** moves the text from the cursor position to the end of the current line down to its counterpart line at the chunk below. Subsequent counterpart lines are moved down correspondingly. The current line is left with the text leftside of the cursor.
 
@@ -74,9 +76,9 @@ https://github.com/tanloong/interlaced.nvim/blob/20d0ff5cbd40361b50a9e8f02938f29
 
 **:ItPrevUnaligned** ibidem but finds the previous chunk.
 
-**:ItSetLangNum {num}** changes language number, i.e., how many lines should be in each chunk. This affects re-positioning actions: `ItPushUp(Pair)`, `ItPullBelow(Pair)`, `ItPushDown(RightPart)`, `ItSwapWithAbove`, `ItSwapWithBelow`, and `ItLeaveAlone`. When called without argument or with a single `?` it shows the current value.
+**:ItSetLangNum {num}** changes `lang_num`, i.e., how many lines should be in each chunk. This affects re-positioning actions: `ItPushUp(Pair|LeftPart)?`, `ItPullBelow(Pair)?`, `ItPushDown(RightPart)?`, `ItSwapWith(Above|Below)`, and `ItLeaveAlone`. When called without argument or with a single `?` it shows the current value.
 
-**:ItSetSeparator {num} {str}** changes sentence separator to `str` for the `num`th language, i.e., what should be inserted between on `ItPushUp(Pair)` and `ItPullBelow(Pair)`. When called without argument or with a single `?` it shows current values. 
+**:ItSetSeparator {num} {str}** changes sentence separator to `str` for the `num`th language, i.e., what should be inserted between on `ItPushUp(Pair|LeftPart)?` and `ItPullBelow(Pair)?`. When called without argument or with a single `?` it shows current values. 
 
 **:[count]ItNavigateDown** moves cursor down by `lang_num + 1` lines.
 
@@ -86,7 +88,7 @@ https://github.com/tanloong/interlaced.nvim/blob/20d0ff5cbd40361b50a9e8f02938f29
 
 **:[count]ItRedo** undoes the last `ItUnDo`.
 
-**:ItToggleChunkNr** shows/hides chunk number at the right-hand side.
+**:ItToggleChunkNr** shows/hides chunk number at intervals.
 
 **:ItDump [filepath]** saves workspace to `filepath`: cursor position, matches, language separator, and `lang_num`. Undo and redo lists are not saved. Uses `./.interlaced.json` when called without argument.
 

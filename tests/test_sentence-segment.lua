@@ -12,6 +12,7 @@ local test_segment = function(func, sents, sent_sep)
   local paras
   ---@type string[]
   local sents_expected
+  local lines
 
   table.insert(sents, sents[1]) -- insert a placehold ensuring the last sentence's ending is tested
   for start = 1, 2 do           -- ensure each sentence ending is tested
@@ -27,7 +28,6 @@ local test_segment = function(func, sents, sent_sep)
       vim.list_extend(sents_expected, _sents)
     end
 
-    local lines
     for i = 1, 2 do -- test being tolerant of redundant separators
       lines = {}
       for _, _sents in ipairs(paras) do

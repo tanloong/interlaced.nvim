@@ -13,6 +13,7 @@ local config = {
   keymaps = {
     { "n", ",",     rpst.cmd.PushUp,            { noremap = true, buffer = true, nowait = true } },
     { "n", "<",     rpst.cmd.PushUpPair,        { noremap = true, buffer = true, nowait = true } },
+    { "n", "e",     rpst.cmd.PushUpLeftPart,    { noremap = true, buffer = true, nowait = true } },
     { "n", ".",     rpst.cmd.PullBelow,         { noremap = true, buffer = true, nowait = true } },
     { "n", ">",     rpst.cmd.PullBelowPair,     { noremap = true, buffer = true, nowait = true } },
     { "n", "d",     rpst.cmd.PushDownRightPart, { noremap = true, buffer = true, nowait = true } },
