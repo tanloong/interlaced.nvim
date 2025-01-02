@@ -161,6 +161,7 @@ M.cmd.ListMatches = function()
     local display_patterns = {}
     local id_len = math.max(unpack(vim.tbl_map(function(t) return tostring(t.id):len() end, matches)))
     local grp_len = math.max(unpack(vim.tbl_map(function(t) return t.group:len() end, matches)))
+    vim_fn.clearmatches(listwinid) -- avoid duplicate highlights on color names
     for _, m in ipairs(matches) do
       if not vim.list_contains(display_patterns, m.pattern) then
         table.insert(display_lines,
@@ -216,11 +217,12 @@ M.cmd.ListMatches = function()
     vim_fn.setcursorcharpos(m.display_lineno, 1)
   end
 
-  local function change_match()
+  ---@param color string|nil
+  local function apply_match(color)
     local line = vim_api.nvim_get_current_line()
     local id = line:match([[^%s*(%S+)]])
     -- {group name} does not allow whitespace (:h group-name), use \S is OK
-    local color = line:match([[^%s*%S+%s*(%S+)]])
+    color = color or line:match([[^%s*%S+%s*(%S+)]])
     local pattern = line:match([[^%s*%S+%s*%S+%s*(.*)%s*$]])
 
     if id == "_" then
@@ -248,7 +250,10 @@ M.cmd.ListMatches = function()
     { "n", "U", restore_match, "Restore the last deleted match" },
     { "n", "s", cycle_sort,
       "cycle through sort methods (1. pattern, 2. color, 3. insertion order)" },
-    { { "n", "i", "v", "s" }, "<enter>", change_match, "modify the pattern or color of the match under the cursor" },
+    { { "n", "i", "v", "s" }, "<enter>", apply_match,
+      "modify the pattern or color of the match under the cursor" },
+    { "n", "R", function() apply_match("_") end,
+      "switch a random color for the match under the cursor" },
   }) do
     local modes, from, to, desc = unpack(entry)
     vim.keymap.set(modes, from, to, { desc = desc, silent = true, buffer = true, nowait = true, noremap = true })
