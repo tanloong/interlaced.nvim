@@ -100,7 +100,6 @@ M.cmd.PushUp = function(lnum, store)
 
   _H.upward(lineno, here, store)
   _H.delete_trailing_empty_lines()
-  if M.config.auto_save then vim_cmd("w") end
 end
 
 ---Pull the counterpart line from the chunk below up to the end of current line
@@ -121,7 +120,6 @@ M.cmd.PullBelow = function(lnum, store)
 
   _H.upward(lineno + (M.config.lang_num + 1), here, store)
   _H.delete_trailing_empty_lines()
-  if M.config.auto_save then vim_cmd("w") end
 end
 
 ---Helper for PushUpPair and PullBelowPair
@@ -168,7 +166,6 @@ _H.upward_pair = function(lnum, here, store)
   end
 
   _H.delete_trailing_empty_lines()
-  if M.config.auto_save then vim_cmd("w") end
 
   if store then
     _H.store_undo {
@@ -226,7 +223,6 @@ _H.downward_pair = function(lnum, cnums, store)
   end
 
   _H.delete_trailing_empty_lines()
-  if M.config.auto_save then vim_cmd("w") end
 
   if store then
     _H.store_undo {
@@ -305,7 +301,6 @@ M.cmd.PushDownRightPart = function(lnum, cnum, store)
   end
 
   _H.delete_trailing_empty_lines()
-  if M.config.auto_save then vim_cmd("w") end
   if store then
     _H.store_undo {
       function() M.cmd.PushDownRightPart(curr_lineno, curr_colno, false) end,
@@ -338,7 +333,6 @@ M.cmd.PushUpLeftPart = function(lnum, cnum, store)
   setline(cntrprt_lineno, cntrprt_line .. sep .. before_cursor)
   setline(curr_lineno, after_cursor)
 
-  if M.config.auto_save then vim_cmd("w") end
   if store then
     _H.store_undo {
       function() M.cmd.PushUpLeftPart(curr_lineno, curr_colno, false) end,
@@ -370,7 +364,6 @@ _H.push_down_right_part_join = function(lnum, cnum, store)
   setline(curr_lineno, before_cursor)
   setline(cntrprt_lineno, after_cursor .. sep .. cntrprt_line)
 
-  if M.config.auto_save then vim_cmd("w") end
   if store then
     _H.store_undo {
       function() _H.push_down_right_part_join(curr_lineno, curr_colno, false) end,
@@ -435,7 +428,6 @@ M.cmd.LeaveAlone = function(lnum, store)
   end
 
   _H.delete_trailing_empty_lines()
-  if M.config.auto_save then vim_cmd("w") end
 
   if store then
     _H.store_undo {
@@ -486,7 +478,6 @@ _H.put_together = function(lnum, store)
   end
 
   _H.delete_trailing_empty_lines()
-  if M.config.auto_save then vim_cmd("w") end
 
   if store then
     _H.store_undo {
@@ -510,7 +501,6 @@ M.cmd.SwapWithAbove = function(lnum, store)
   setline(curr_lineno, cntrprt_line)
 
   vim_fn.cursor(cntrprt_lineno, 1)
-  if M.config.auto_save then vim_cmd("w") end
 
   if store then
     _H.store_undo {
@@ -534,7 +524,6 @@ M.cmd.SwapWithBelow = function(lnum, store)
   setline(curr_lineno, cntrprt_line)
 
   vim_fn.cursor(cntrprt_lineno, 1)
-  if M.config.auto_save then vim_cmd("w") end
 
   if store then
     _H.store_undo {
@@ -676,9 +665,6 @@ _H.SplitHelper = function(regex, a)
     vim.list_extend(sents, vim_fn.split(line, regex))
   end
   vim_api.nvim_buf_set_lines(0, 0, -1, false, sents)
-  if M.config.auto_save then
-    vim_cmd("w")
-  end
 end
 
 ---Insert a newline at end of each Chinese sentence boundaries

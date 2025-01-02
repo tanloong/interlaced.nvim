@@ -38,8 +38,6 @@ local config = {
   setup_mappings_now = (((vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())):find("interlaced%.txt$")) ~= nil),
   -- sentence separator to insert between when push- or pull-ing up
   language_separator = { ["1"] = "", ["2"] = " " },
-  -- save on text re-position, i.e., pushing, pulling, sentence splitting. But causes delay for re-position, better turn this off
-  auto_save = false,
   cmd_prefix = "It",
   lang_num = 2,
   ---@type function|nil
