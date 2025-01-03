@@ -56,21 +56,21 @@ https://github.com/tanloong/interlaced.nvim/blob/20d0ff5cbd40361b50a9e8f02938f29
 
 **:ItSwapWithBelow** ibidem but from the chunk below.
 
-**:ItPushUp** appends current line up to the end of its counterpart at the chunk above. Subsequent counterpart lines are moved up correspondingly.
+**:ItPushUp [lineno]** appends the line at `lineno` up to the end of its counterpart at the chunk above. Subsequent counterpart lines are moved up correspondingly. Works on the current line if `lineno` is not provided.
 
-**:ItPushUpPair** ibidem but works every line in the current chunk.
+**:ItPushUpPair [lineno]** ibidem but works every line in the chunk where `lineno` is at.
 
-**:ItPushUpLeftPart** appends the text from the beginning of the current line to the cursor position to the end of its counterpart, leaving the current line with the text rightside of the cursor.
+**:ItPushUpLeftPart [lineno [colno]]** appends the text leftside of column `colno` at line `lineno` up to its counterpart in the chunk above, leaving line `lineno` with the text rightside of column `colno`. Works on the current line if `lineno` is not provided. Uses cursor position if `colno` is not provided.
 
-**:ItPullBelow** applies **ItPushUp** on the counterpart of the current line at the chunk below.
+**:ItPullBelow [lineno]** appends the counterpart at the chunk below to line `lineno`. Subsequent counterpart lines are moved up correspondingly. Works on the current line if `lineno` is not provided.
 
-**:ItPullBelowPair** ibidem but on every line in the chunk below.
+**:ItPullBelowPair [lineno]** ibidem but works every line in the chunk where `lineno` is at.
 
-**:ItPushDownRightPart** moves the text from the cursor position to the end of the current line down to its counterpart line at the chunk below. Subsequent counterpart lines are moved down correspondingly. The current line is left with the text leftside of the cursor.
+**:ItPushDownRightPart [lineno [colno]]** moves the text rightside of column `colno` at line `lineno` down to its counterpart at the chunk below, leaving lineno `lineno` with the text leftside of column `colno`. Subsequent counterpart lines are moved down correspondingly. Works on the current line if `lineno` is not provided. Uses cursor position if `colno` is not provided.
 
-**:ItPushDown** ibidem but works on the whole current line. The current line is left as empty.
+**:ItPushDown [lineno]** ibidem but moves down the whole line `lineno`, leaving it as empty.
 
-**:ItLeaveAlone** pushes down all lines (except the cursor line) in the current chunk, puts a `-` as placeholder at each, and moves cursor down to the next chunk.
+**:ItLeaveAlone [lineno]** pushes down all lines (except the cursor line) in the chunk where `lineno` is at, puts a `-` as placeholder at each, and moves cursor down to the next chunk. Works on the cursor chunk if `lineno` is not provided.
 
 **:ItNextUnaligned** finds the next chunk has different kinds of highlighted matches across its lines and puts cursor there.
 

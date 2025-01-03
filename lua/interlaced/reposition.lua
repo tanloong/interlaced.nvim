@@ -18,6 +18,8 @@ local M = {
   cmd = {},
 }
 
+-------------------------------RE-POSITION START--------------------------------
+
 ---@return integer
 _H.append_to_3_lines_above = function(lineno)
   local lineno_target = lineno - (M.config.lang_num + 1)
@@ -43,7 +45,9 @@ _H.delete_trailing_empty_lines = function()
 end
 
 ---@param store boolean|nil
-_H.upward = function(lnum, here, store)
+_H.push_up = function(lnum, here, store)
+  if lnum < (M.config.lang_num + 1) or lnum % (M.config.lang_num + 1) == 0 then return end
+
   if store == nil then store = true end
   local cnum = _H.append_to_3_lines_above(lnum)
 
@@ -73,20 +77,23 @@ _H.upward = function(lnum, here, store)
 
   setline(lineno - (M.config.lang_num + 1), "")
 
+  _H.delete_trailing_empty_lines()
+
   if store then
     _H.store_undo {
-      function() _H.upward(lnum, here, false) end,
-      function() M.cmd.PushDownRightPart(lnum - (M.config.lang_num + 1), cnum, false) end,
+      function() _H.push_up(lnum, here, false) end,
+      function() _H.push_down_right_part(lnum - (M.config.lang_num + 1), cnum, false) end,
     }
     M._redos = {}
   end
 end
 
 ---Push current line up to the chunk above, joining to the end of its counterpart
----@param lnum integer|nil
----@param store boolean|nil
-M.cmd.PushUp = function(lnum, store)
-  local here, lineno
+---@param a table
+M.cmd.PushUp = function(a)
+  local here, lineno, lnum
+  if a ~= nil and a.fargs ~= nil then lnum = tonumber(a.fargs[1]) end
+
   if lnum == nil then
     here = vim_api.nvim_win_get_cursor(0)
     lineno = here[1]
@@ -94,19 +101,16 @@ M.cmd.PushUp = function(lnum, store)
     lineno = lnum
     here = { lineno, 1 }
   end
-  if store == nil then store = true end
 
-  if lineno < (M.config.lang_num + 1) or lineno % (M.config.lang_num + 1) == 0 then return end
-
-  _H.upward(lineno, here, store)
-  _H.delete_trailing_empty_lines()
+  _H.push_up(lineno, here, true)
 end
 
 ---Pull the counterpart line from the chunk below up to the end of current line
----@param lnum integer|nil
----@param store boolean|nil
-M.cmd.PullBelow = function(lnum, store)
-  local here, lineno
+---@param a table
+M.cmd.PullBelow = function(a)
+  local here, lineno, lnum
+  if a ~= nil and a.fargs ~= nil then lnum = tonumber(a.fargs[1]) end
+
   if lnum == nil then
     here = vim_api.nvim_win_get_cursor(0)
     lineno = here[1]
@@ -116,17 +120,16 @@ M.cmd.PullBelow = function(lnum, store)
   end
   if store == nil then store = true end
 
-  if lineno < (M.config.lang_num + 1) or lineno % (M.config.lang_num + 1) == 0 then return end
-
-  _H.upward(lineno + (M.config.lang_num + 1), here, store)
-  _H.delete_trailing_empty_lines()
+  _H.push_up(lineno + (M.config.lang_num + 1), here, true)
 end
 
 ---Helper for PushUpPair and PullBelowPair
 ---@param lnum integer
 ---@param here integer[]
 ---@param store boolean|nil
-_H.upward_pair = function(lnum, here, store)
+_H.push_up_pair = function(lnum, here, store)
+  if lnum < (M.config.lang_num + 1) or lnum % (M.config.lang_num + 1) == 0 then return end
+
   -- locate first chunk line
   local lineno = lnum - lnum % (M.config.lang_num + 1)
   if store == nil then store = true end
@@ -169,7 +172,7 @@ _H.upward_pair = function(lnum, here, store)
 
   if store then
     _H.store_undo {
-      function() _H.upward_pair(lnum, here, false) end,
+      function() _H.push_up_pair(lnum, here, false) end,
       function() _H.downward_pair(lnum - (M.config.lang_num + 1), cnums, false) end,
     }
     M._redos = {}
@@ -227,37 +230,54 @@ _H.downward_pair = function(lnum, cnums, store)
   if store then
     _H.store_undo {
       function() _H.downward_pair(lnum, cnums, false) end,
-      function() _H.upward(lnum + (M.config.lang_num + 1), { lnum + M.config.lang_num + 1, 1 }, false) end,
+      function() _H.push_up(lnum + (M.config.lang_num + 1), { lnum + M.config.lang_num + 1, 1 }, false) end,
     }
     M._redos = {}
   end
 end
 
 ---Push current chunk up to the one above, joining each line to the end of the corresponding counterpart
-M.cmd.PushUpPair = function()
+---@param a table
+M.cmd.PushUpPair = function(a)
   local here = vim_api.nvim_win_get_cursor(0)
 
-  local lineno = here[1]
+  local lineno
+  if a ~= nil and a.fargs ~= nil then lineno = tonumber(a.fargs[1]) end
+  if lineno == nil then lineno = here[1] end
+
   if lineno <= (M.config.lang_num + 1) or lineno % (M.config.lang_num + 1) == 0 then return end
 
-  _H.upward_pair(lineno, here, true)
+  _H.push_up_pair(lineno, here, true)
 end
 
 ---Pull the chunk below up to current chunk, joining each line to the end of the corresponding line
-M.cmd.PullBelowPair = function()
+---@param a table
+M.cmd.PullBelowPair = function(a)
   local here = vim_api.nvim_win_get_cursor(0)
 
-  local lineno = here[1] + (M.config.lang_num + 1)
+  local lineno
+  if a ~= nil and a.fargs ~= nil then lineno = tonumber(a.fargs[1]) end
+  if lineno == nil then lineno = here[1] end
   if vim_fn.line("$") - lineno <= (M.config.lang_num) then return end
 
-  _H.upward_pair(lineno, here)
+  _H.push_up_pair(lineno + (M.config.lang_num + 1), here, true)
+end
+
+---@param a table
+M.cmd.PushDownRightPart = function(a)
+  local lnum, cnum
+  if a ~= nil and a.fargs ~= nil then
+    lnum = tonumber(a.fargs[1])
+    cnum = tonumber(a.fargs[2])
+  end
+  _H.push_down_right_part(lnum, cnum, true)
 end
 
 ---Push the text on the right side of the cursor in the current line down to the chunk below
 ---@param lnum integer|nil
 ---@param cnum integer|nil
 ---@param store boolean|nil
-M.cmd.PushDownRightPart = function(lnum, cnum, store)
+_H.push_down_right_part = function(lnum, cnum, store)
   local curr_lineno = lnum or vim_fn.line(".")
   local languid = curr_lineno % (M.config.lang_num + 1)
   if languid == 0 then return end
@@ -284,8 +304,9 @@ M.cmd.PushDownRightPart = function(lnum, cnum, store)
   local sep = M.config.language_separator[tostring(languid)]
   before_cursor = vim_fn.substitute(before_cursor, vim_fn.escape(sep, [[\]]) .. [[$]], "", "")
   after_cursor = vim_fn.substitute(after_cursor, [[^]] .. vim_fn.escape(sep, [[\]]), "", "")
+  local cntrprt_lineno = curr_lineno + (M.config.lang_num + 1)
   setline(curr_lineno, before_cursor)
-  setline(curr_lineno + (M.config.lang_num + 1), after_cursor)
+  setline(cntrprt_lineno, after_cursor)
 
   if vim_api.nvim__redraw ~= nil then
     vim_api.nvim__redraw({ win = 0, cursor = true, flush = true })
@@ -303,15 +324,25 @@ M.cmd.PushDownRightPart = function(lnum, cnum, store)
   _H.delete_trailing_empty_lines()
   if store then
     _H.store_undo {
-      function() M.cmd.PushDownRightPart(curr_lineno, curr_colno, false) end,
-      function() M.cmd.PullBelow(curr_lineno, false) end,
+      function() _H.push_down_right_part(curr_lineno, curr_colno, false) end,
+      function() _H.push_up(cntrprt_lineno, { curr_lineno, 1 }, false) end,
     }
     M._redos = {}
   end
 end
 
+---@param a table
+M.cmd.PushUpLeftPart = function(a)
+  local lnum, cnum
+  if a ~= nil and a.fargs ~= nil then
+    lnum = tonumber(a.fargs[1])
+    cnum = tonumber(a.fargs[2])
+  end
+  _H.push_up_left_part(lnum, cnum, true)
+end
+
 ---Push the text on the left side of the cursor in the current line up to the chunk above, appending to the end of its couunterpart
-M.cmd.PushUpLeftPart = function(lnum, cnum, store)
+_H.push_up_left_part = function(lnum, cnum, store)
   local curr_lineno = lnum or vim_fn.line(".")
   local languid = curr_lineno % (M.config.lang_num + 1)
   if languid == 0 or curr_lineno <= M.config.lang_num then return end
@@ -335,7 +366,7 @@ M.cmd.PushUpLeftPart = function(lnum, cnum, store)
 
   if store then
     _H.store_undo {
-      function() M.cmd.PushUpLeftPart(curr_lineno, curr_colno, false) end,
+      function() _H.push_up_left_part(curr_lineno, curr_colno, false) end,
       function() _H.push_down_right_part_join(cntrprt_lineno, #cntrprt_line + #sep + 1, false) end,
     }
     M._redos = {}
@@ -367,21 +398,34 @@ _H.push_down_right_part_join = function(lnum, cnum, store)
   if store then
     _H.store_undo {
       function() _H.push_down_right_part_join(curr_lineno, curr_colno, false) end,
-      function() M.cmd.PushUpLeftPart(cntrprt_lineno, #after_cursor + #sep + 1, false) end,
+      function() _H.push_up_left_part(cntrprt_lineno, #after_cursor + #sep + 1, false) end,
     }
     M._redos = {}
   end
 end
 
 ---Push current line down to the chunk below
----@param lnum integer|nil
-M.cmd.PushDown = function(lnum)
-  M.cmd.PushDownRightPart(lnum, 1)
+---@param a table
+M.cmd.PushDown = function(a)
+  local lnum
+  if a ~= nil and a.fargs ~= nil then
+    lnum = tonumber(a.fargs[1])
+  end
+  _H.push_down_right_part(lnum, 1, true)
 end
 
----@param lnum integer
+---@param a table
+M.cmd.LeaveAlone = function(a)
+  local lnum
+  if a ~= nil and a.fargs ~= nil then
+    lnum = tonumber(a.fargs[1])
+  end
+  _H.leave_alone(lnum, true)
+end
+
+---@param lnum integer|nil
 ---@param store boolean|nil
-M.cmd.LeaveAlone = function(lnum, store)
+_H.leave_alone = function(lnum, store)
   local curr_lineno = lnum or vim_fn.line(".")
   local languid = curr_lineno % (M.config.lang_num + 1)
   if languid == 0 then return end
@@ -431,7 +475,7 @@ M.cmd.LeaveAlone = function(lnum, store)
 
   if store then
     _H.store_undo {
-      function() M.cmd.LeaveAlone(curr_lineno, false) end,
+      function() _H.leave_alone(curr_lineno, false) end,
       function() _H.put_together(curr_lineno, false) end,
     }
     M._redos = {}
@@ -482,15 +526,24 @@ _H.put_together = function(lnum, store)
   if store then
     _H.store_undo {
       function() _H.put_together(curr_lineno, false) end,
-      function() M.cmd.LeaveAlone(curr_lineno, false) end,
+      function() _H.leave_alone(curr_lineno, false) end,
     }
     M._redos = {}
   end
 end
 
+---@param a table
+M.cmd.SwapWithAbove = function(a)
+  local lnum
+  if a ~= nil and a.fargs ~= nil then
+    lnum = tonumber(a.fargs[1])
+  end
+  _H.swap_with_above(lnum, true)
+end
+
 ---@param lnum integer|nil
 ---@param store boolean|nil
-M.cmd.SwapWithAbove = function(lnum, store)
+_H.swap_with_above = function(lnum, store)
   local curr_lineno = lnum or vim_fn.line(".")
   if curr_lineno % (M.config.lang_num + 1) == 0 or curr_lineno <= M.config.lang_num then return end
   if store == nil then store = true end
@@ -504,16 +557,24 @@ M.cmd.SwapWithAbove = function(lnum, store)
 
   if store then
     _H.store_undo {
-      function() M.cmd.SwapWithAbove(curr_lineno, false) end,
-      function() M.cmd.SwapWithAbove(curr_lineno, false) end,
+      function() _H.swap_with_above(curr_lineno, false) end,
+      function() _H.swap_with_above(curr_lineno, false) end,
     }
   end
 end
 
+---@param a table
+M.cmd.SwapWithBelow = function(a)
+  local lnum
+  if a ~= nil and a.fargs ~= nil then
+    lnum = tonumber(a.fargs[1])
+  end
+  _H.swap_with_below(lnum, true)
+end
 
 ---@param lnum integer|nil
 ---@param store boolean|nil
-M.cmd.SwapWithBelow = function(lnum, store)
+_H.swap_with_below = function(lnum, store)
   local curr_lineno = lnum or vim_fn.line(".")
   if curr_lineno % (M.config.lang_num + 1) == 0 or vim_fn.line("$") - curr_lineno + 1 <= M.config.lang_num then return end
   if store == nil then store = true end
@@ -527,11 +588,13 @@ M.cmd.SwapWithBelow = function(lnum, store)
 
   if store then
     _H.store_undo {
-      function() M.cmd.SwapWithBelow(curr_lineno, false) end,
-      function() M.cmd.SwapWithBelow(curr_lineno, false) end,
+      function() _H.swap_with_below(curr_lineno, false) end,
+      function() _H.swap_with_below(curr_lineno, false) end,
     }
   end
 end
+
+--------------------------------RE-POSITION END---------------------------------
 
 ---@param t function[] the first func is for redo, second undo
 _H.store_undo = function(t)
