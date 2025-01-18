@@ -126,7 +126,7 @@ end
 ---@return integer, integer the window id and buffer number
 M.cmd.ListMatches = function()
   local origwinid = vim_api.nvim_get_current_win()
-  vim.cmd([[botright split | resize ]] .. vim.o.cmdwinheight)
+  vim.cmd([[botright split | setlocal winfixheight | resize ]] .. vim.o.cmdwinheight)
   local listwinid = vim_api.nvim_get_current_win()
   local bufnr = vim_api.nvim_create_buf(true, true)
   vim_api.nvim_buf_set_name(bufnr, "interlaced://" .. tostring(bufnr))

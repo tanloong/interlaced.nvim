@@ -56,9 +56,9 @@ end
 
 
 ---@param params table
----@param is_curbuf_L1 boolean
+---@param is_curbuf_l1 boolean
 ---@return nil
-_H.InterlaceWithL = function(params, is_curbuf_L1)
+_H.InterlaceWithL = function(params, is_curbuf_l1)
   local filepath = params.args
   local fh, err = io.open(filepath, "r")
   if not fh then
@@ -73,7 +73,7 @@ _H.InterlaceWithL = function(params, is_curbuf_L1)
   local lines_this = vim_api.nvim_buf_get_lines(0, 0, -1, true)
   lines_this = vim.tbl_filter(function(s) return s:find("%S") ~= nil end, lines_this)
   lines_that = vim.tbl_filter(function(s) return s:find("%S") ~= nil end, lines_that)
-  local lines = is_curbuf_L1 and _H.zip(lines_this, lines_that) or _H.zip(lines_that, lines_this)
+  local lines = is_curbuf_l1 and _H.zip(lines_this, lines_that) or _H.zip(lines_that, lines_this)
   local time = _H.get_timestr()
   local interlaced_path = time .. ".interlaced.txt"
   vim_fn.writefile(lines, interlaced_path)
@@ -93,6 +93,84 @@ end
 ---@return nil
 M.cmd.InterlaceWithL2 = function(params)
   _H.InterlaceWithL(params, true)
+end
+
+---Interlace current buffer with files, placing current buffer at position {n}
+---@param a table
+---@return nil
+M.cmd.InterlaceAsL = function(a)
+  if #a.fargs < 2 then
+    logger.error("Usage: ItInterlaceAsL {n} {filepath} [filepath ...]")
+    return
+  end
+
+  local n = tonumber(a.fargs[1])
+  if n == nil or n < 1 then
+    logger.error("First argument must be a positive integer")
+    return
+  end
+
+  table.remove(a.fargs, 1)
+
+  -- Read current buffer content
+  local current_lines = vim_api.nvim_buf_get_lines(0, 0, -1, true)
+  current_lines = vim.tbl_filter(function(s) return s:find("%S") ~= nil end, current_lines)
+
+  -- Read file contents
+  local file_contents = {}
+  for _, filepath in ipairs(a.fargs) do
+    local fh, err = io.open(filepath, "r")
+    if not fh then
+      logger.warning("Failed to open file for reading: " .. filepath .. "\nError: " .. err)
+      return
+    end
+    local lines = {}
+    for line in fh:lines() do
+      table.insert(lines, line)
+    end
+    fh:close()
+    table.insert(file_contents, lines)
+  end
+
+  -- Determine the number of languages
+  local lang_num = #file_contents + 1
+
+  -- Ensure n is within valid range
+  if n > lang_num then
+    logger.error("n cannot be greater than the number of languages (" .. lang_num .. ")")
+    return
+  end
+
+  -- Interlace the lines
+  local interlaced_lines = {}
+  local max_lines = #current_lines
+  for i = 1, #file_contents do
+    max_lines = math.max(max_lines, #file_contents[i])
+  end
+
+  for i = 1, max_lines do
+    for lang = 1, lang_num do
+      if lang == n then
+        table.insert(interlaced_lines, current_lines[i] or "")
+      else
+        local file_idx = lang < n and lang or lang - 1
+        table.insert(interlaced_lines, file_contents[file_idx][i] or "")
+      end
+    end
+    table.insert(interlaced_lines, "") -- Add an empty line between chunks
+  end
+
+  -- Create a new buffer with the interlaced content
+  local time = _H.get_timestr()
+  local interlaced_path = time .. ".interlaced.txt"
+  vim_fn.writefile(interlaced_lines, interlaced_path)
+  vim_cmd("edit " .. interlaced_path)
+
+  M.config.lang_num = 1 + #a.fargs
+  -- Enable keybindings if not already enabled
+  if not M._is_mappings_on then
+    M.cmd.EnableKeybindings()
+  end
 end
 
 ---Enable custom keybindings as defined in M.config.mappings.
@@ -143,7 +221,7 @@ M.ShowChunkNr = function()
   if M._ns_id == nil then M._ns_id = vim_api.nvim_create_namespace("interlaced") end
 
   local last_lineno = vim_fn.line("$")
-  local opts = { right_gravity = true, virt_text_win_col = 0 , hl_mode = "combine" }
+  local opts = { right_gravity = true, virt_text_win_col = 0, hl_mode = "combine" }
   local chunkno = 1
   local text
   -- nvim_buf_set_extmark uses 0-based, end-exclusive index, thus - 1
@@ -253,7 +331,7 @@ M.cmd.Dump = function(a)
 
   f:write(vim.json.encode(data))
   f:close()
-  logger.info("Dumpped at " .. os.date("%H:%M:%S"))
+  logger.info("dumpped at " .. os.date("%H:%M:%S"))
 end
 
 M.cmd.Load = function(a)
@@ -322,6 +400,7 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "EnableKeybindings", M.cmd.EnableKeybindings, { nargs = 0 })
   create_command(M.config.cmd_prefix .. "InterlaceWithL1", M.cmd.InterlaceWithL1, { complete = "file", nargs = 1 })
   create_command(M.config.cmd_prefix .. "InterlaceWithL2", M.cmd.InterlaceWithL2, { complete = "file", nargs = 1 })
+  create_command(M.config.cmd_prefix .. "InterlaceAsL", M.cmd.InterlaceAsL, { complete = "file", nargs = "+" })
   create_command(M.config.cmd_prefix .. "Load", M.cmd.Load, { complete = "file", nargs = "?" })
   create_command(M.config.cmd_prefix .. "SetLangNum", M.cmd.SetLangNum, { nargs = "?" })
   create_command(M.config.cmd_prefix .. "SetSeparator", M.cmd.SetSeparator, { nargs = "*" })

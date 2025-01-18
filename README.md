@@ -36,11 +36,11 @@ https://github.com/tanloong/interlaced.nvim/blob/20d0ff5cbd40361b50a9e8f02938f29
 
 **:ItInterlaceWithL2 {filepath}** ibidem but lines from `filepath` are below those from current buffer.
 
-**:[range]ItInterlace [num]** mixes non-empty lines from current buffer into `num` empty-line-separated groups. If `num` is not provided, `lang_num` field of the config table will be used. Works on the range when provided, the whole buffer if not.
+**:[range]ItInterlace [num]** mixes non-empty lines from current buffer into `num` empty-line-separated chunks. Works on the range when provided, the whole buffer if not. If `num` is not provided, `lang_num` field of the config table will be used.
 
-**:ItDeinterlace**
+**:[range]ItDeinterlace [num]** Works on the range when provided, the whole buffer if not. If `num` is not provided, `lang_num` field of the config table will be used.
 
-**:ItMatchAdd** opens a matches window to edit a pattern to be highlighted. The window has 3 columns: match id, highlight group, and pattern. On pressing `<Enter>` in insert/normal mode, `matchadd()` will be called with the 3 values (see `:h matchadd()`). If match id is left as `_`, a random one will be chosen by `matchadd()` . If highlight group is left as `_`, a random one will be chosen from the plugin's [predefined ones](https://github.com/tanloong/interlaced.nvim/blob/dev/lua/interlaced/colors.lua).
+**:ItMatchAdd** opens a matches window to edit a pattern to be highlighted. The window has 3 columns: match id, highlight group, and pattern. On pressing `<Enter>` in insert/normal mode, `matchadd()` will be called with the 3 values (see `:h matchadd()`). If match id is left as `_`, a random one will be chosen by `matchadd()` . If highlight group is left as `_`, a random one will be chosen from the plugin's [predefined ones](https://github.com/tanloong/interlaced.nvim/blob/dev/lua/interlaced/colors.lua). In normal mode, `D` deletes match of current line, `U` undoes the deletion, `R` switches a random color for the match under the cursor.
 
 **:ItMatchAddVisual** ibidem but populates the pattern column with the visually selected text.
 
@@ -84,7 +84,7 @@ https://github.com/tanloong/interlaced.nvim/blob/20d0ff5cbd40361b50a9e8f02938f29
 
 **:[count]ItNavigateUp** moves cursor up by `lang_num + 1` lines.
 
-**:[count]ItUndo** undoes the last re-positioning action. The undo list remembers at most 100 actions and forgets oldest ones thereafter.
+**:[count]ItUndo** undoes the last re-positioning action. The undo list remembers at most 100 actions and forgets oldest ones thereafter. It costs too much RAM to remember changes of an interlaced buffer, because re-position affects every counterpart line from the cursor below, and the builtin *undo history* stores all of that. One `ItPushUp` at the beginning of an interlaced buffer with 190k lines increases memory use by 100M. To avoid memory creep, the plugin has an isolated *operation history* for re-positioning operations (`ItPushUp(Pair)`, `ItPullBelow(Pair)`, `ItPushDown(RightPart)`, and `ItLeaveAlone`). It disables the builtin undo history recording before a re-positioning operation is called, appends the operation to its operation history, and enables the undo history after. Note that the builtin undo history is cleared once an re-positioning operation is called. Use `:ItUndo` to undo a re-positioning operation. Use the traditional `u` to undo normal text changes like inserting, pasting, etc.
 
 **:[count]ItRedo** undoes the last `ItUnDo`.
 

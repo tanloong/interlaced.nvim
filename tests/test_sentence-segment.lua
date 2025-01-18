@@ -14,7 +14,7 @@ local test_segment = function(func, sents, sent_sep)
   local sents_expected
   local lines
 
-  table.insert(sents, sents[1]) -- insert a placehold ensuring the last sentence's ending is tested
+  table.insert(sents, sents[1]) -- insert placeholder ensuring the last sentence's ending is tested
   for start = 1, 2 do           -- ensure each sentence ending is tested
     paras = {}
     for i = start, #sents, 3 do -- test multiple sentences at the same line

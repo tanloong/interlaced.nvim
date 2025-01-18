@@ -28,7 +28,7 @@ _H.append_to_3_lines_above = function(lineno)
   local ret = #line_target + 1
 
   local languid = tostring(lineno % (M.config.lang_num + 1))
-  local sep = M.config.language_separator[languid]
+  local sep = M.config.language_separator[languid] or ""
   line_target = line_target == "" and line or line_target .. sep .. line
   setline(lineno_target, line_target)
   setline(lineno, "")
@@ -47,8 +47,12 @@ end
 ---@param store boolean|nil
 _H.push_up = function(lnum, here, store)
   if lnum < (M.config.lang_num + 1) or lnum % (M.config.lang_num + 1) == 0 then return end
-
   if store == nil then store = true end
+
+  -- temporarily disable undo history recording
+  local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
+  vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
+
   local cnum = _H.append_to_3_lines_above(lnum)
 
   local lineno = lnum + (M.config.lang_num + 1)
@@ -86,6 +90,9 @@ _H.push_up = function(lnum, here, store)
     }
     M._redos = {}
   end
+
+  -- enable undo history recording
+  vim_api.nvim_set_option_value("undolevels", ul_orig, { scope = "local" })
 end
 
 ---Push current line up to the chunk above, joining to the end of its counterpart
@@ -129,10 +136,14 @@ end
 ---@param store boolean|nil
 _H.push_up_pair = function(lnum, here, store)
   if lnum < (M.config.lang_num + 1) or lnum % (M.config.lang_num + 1) == 0 then return end
+  if store == nil then store = true end
+
+  -- temporarily disable undo history recording
+  local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
+  vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
 
   -- locate first chunk line
   local lineno = lnum - lnum % (M.config.lang_num + 1)
-  if store == nil then store = true end
 
   local cnums = {}
   for offset = 1, M.config.lang_num do table.insert(cnums, _H.append_to_3_lines_above(lineno + offset)) end
@@ -177,6 +188,9 @@ _H.push_up_pair = function(lnum, here, store)
     }
     M._redos = {}
   end
+
+  -- enable undo history recording
+  vim_api.nvim_set_option_value("undolevels", ul_orig, { scope = "local" })
 end
 
 ---@param lnum integer
@@ -185,6 +199,10 @@ end
 _H.downward_pair = function(lnum, cnums, store)
   local curr_chunk_prev_lineno = lnum - lnum % (M.config.lang_num + 1)
   if store == nil then store = true end
+
+  -- temporarily disable undo history recording
+  local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
+  vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
 
   local last_lineno = vim_fn.line("$")
   for _ = 1, M.config.lang_num + 1 do vim_fn.append(last_lineno, "") end
@@ -234,6 +252,9 @@ _H.downward_pair = function(lnum, cnums, store)
     }
     M._redos = {}
   end
+
+  -- enable undo history recording
+  vim_api.nvim_set_option_value("undolevels", ul_orig, { scope = "local" })
 end
 
 ---Push current chunk up to the one above, joining each line to the end of the corresponding counterpart
@@ -284,6 +305,10 @@ _H.push_down_right_part = function(lnum, cnum, store)
   local curr_colno = cnum or vim_fn.col(".")
   if store == nil then store = true end
 
+  -- temporarily disable undo history recording
+  local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
+  vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
+
   local last_lineno = vim_fn.line("$")
   for _ = 1, M.config.lang_num + 1 do vim_fn.append(last_lineno, "") end
   local last_counterpart_lineno = last_lineno - (last_lineno - curr_lineno) % (M.config.lang_num + 1)
@@ -301,7 +326,7 @@ _H.push_down_right_part = function(lnum, cnum, store)
   local after_cursor = curr_line:sub(curr_colno)
   before_cursor = before_cursor:gsub([[%s+$]], "", 1)
   after_cursor = after_cursor:gsub([[^%s+]], "", 1)
-  local sep = M.config.language_separator[tostring(languid)]
+  local sep = M.config.language_separator[tostring(languid)] or ""
   before_cursor = vim_fn.substitute(before_cursor, vim_fn.escape(sep, [[\]]) .. [[$]], "", "")
   after_cursor = vim_fn.substitute(after_cursor, [[^]] .. vim_fn.escape(sep, [[\]]), "", "")
   local cntrprt_lineno = curr_lineno + (M.config.lang_num + 1)
@@ -329,6 +354,9 @@ _H.push_down_right_part = function(lnum, cnum, store)
     }
     M._redos = {}
   end
+
+  -- enable undo history recording
+  vim_api.nvim_set_option_value("undolevels", ul_orig, { scope = "local" })
 end
 
 ---@param a table
@@ -349,13 +377,17 @@ _H.push_up_left_part = function(lnum, cnum, store)
   local curr_colno = cnum or vim_fn.col(".")
   if store == nil then store = true end
 
+  -- temporarily disable undo history recording
+  local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
+  vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
+
   -- get left and right parts of curr_lineno
   local curr_line = getline(curr_lineno)
   local before_cursor = curr_line:sub(1, curr_colno - 1)
   local after_cursor = curr_line:sub(curr_colno)
   before_cursor = before_cursor:gsub([[%s+$]], "", 1)
   after_cursor = after_cursor:gsub([[^%s+]], "", 1)
-  local sep = M.config.language_separator[tostring(languid)]
+  local sep = M.config.language_separator[tostring(languid)] or ""
   before_cursor = vim_fn.substitute(before_cursor, vim_fn.escape(sep, [[\]]) .. [[$]], "", "")
   after_cursor = vim_fn.substitute(after_cursor, [[^]] .. vim_fn.escape(sep, [[\]]), "", "")
 
@@ -371,6 +403,9 @@ _H.push_up_left_part = function(lnum, cnum, store)
     }
     M._redos = {}
   end
+
+  -- enable undo history recording
+  vim_api.nvim_set_option_value("undolevels", ul_orig, { scope = "local" })
 end
 
 _H.push_down_right_part_join = function(lnum, cnum, store)
@@ -380,12 +415,16 @@ _H.push_down_right_part_join = function(lnum, cnum, store)
   local curr_colno = cnum or vim_fn.col(".")
   if store == nil then store = true end
 
+  -- temporarily disable undo history recording
+  local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
+  vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
+
   local curr_line = getline(curr_lineno)
   local before_cursor = curr_line:sub(1, curr_colno - 1)
   local after_cursor = curr_line:sub(curr_colno)
   before_cursor = before_cursor:gsub([[%s+$]], "", 1)
   after_cursor = after_cursor:gsub([[^%s+]], "", 1)
-  local sep = M.config.language_separator[tostring(languid)]
+  local sep = M.config.language_separator[tostring(languid)] or ""
   before_cursor = vim_fn.substitute(before_cursor, vim_fn.escape(sep, [[\]]) .. [[$]], "", "")
   after_cursor = vim_fn.substitute(after_cursor, [[^]] .. vim_fn.escape(sep, [[\]]), "", "")
 
@@ -402,6 +441,9 @@ _H.push_down_right_part_join = function(lnum, cnum, store)
     }
     M._redos = {}
   end
+
+  -- enable undo history recording
+  vim_api.nvim_set_option_value("undolevels", ul_orig, { scope = "local" })
 end
 
 ---Push current line down to the chunk below
@@ -430,6 +472,10 @@ _H.leave_alone = function(lnum, store)
   local languid = curr_lineno % (M.config.lang_num + 1)
   if languid == 0 then return end
   if store == nil then store = true end
+
+  -- temporarily disable undo history recording
+  local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
+  vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
 
   local last_lineno = vim_fn.line("$")
   for _ = 1, M.config.lang_num + 1 do vim_fn.append(last_lineno, "") end
@@ -480,6 +526,9 @@ _H.leave_alone = function(lnum, store)
     }
     M._redos = {}
   end
+
+  -- enable undo history recording
+  vim_api.nvim_set_option_value("undolevels", ul_orig, { scope = "local" })
 end
 
 ---Inverse of LeaveAlone
@@ -491,6 +540,10 @@ _H.put_together = function(lnum, store)
   if languid == 0 then return end
   local curr_chunk_prev_lineno = curr_lineno - languid
   if store == nil then store = true end
+
+  -- temporarily disable undo history recording
+  local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
+  vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
 
   local lineno = curr_chunk_prev_lineno + (M.config.lang_num + 1)
   local last_lineno = vim_fn.line("$")
@@ -530,6 +583,9 @@ _H.put_together = function(lnum, store)
     }
     M._redos = {}
   end
+
+  -- enable undo history recording
+  vim_api.nvim_set_option_value("undolevels", ul_orig, { scope = "local" })
 end
 
 ---@param a table
@@ -548,6 +604,10 @@ _H.swap_with_above = function(lnum, store)
   if curr_lineno % (M.config.lang_num + 1) == 0 or curr_lineno <= M.config.lang_num then return end
   if store == nil then store = true end
 
+  -- temporarily disable undo history recording
+  local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
+  vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
+
   local cntrprt_lineno = curr_lineno - (M.config.lang_num + 1)
   local cntrprt_line = getline(cntrprt_lineno)
   setline(cntrprt_lineno, getline(curr_lineno))
@@ -561,6 +621,9 @@ _H.swap_with_above = function(lnum, store)
       function() _H.swap_with_above(curr_lineno, false) end,
     }
   end
+
+  -- enable undo history recording
+  vim_api.nvim_set_option_value("undolevels", ul_orig, { scope = "local" })
 end
 
 ---@param a table
@@ -579,6 +642,10 @@ _H.swap_with_below = function(lnum, store)
   if curr_lineno % (M.config.lang_num + 1) == 0 or vim_fn.line("$") - curr_lineno + 1 <= M.config.lang_num then return end
   if store == nil then store = true end
 
+  -- temporarily disable undo history recording
+  local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
+  vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
+
   local cntrprt_lineno = curr_lineno + (M.config.lang_num + 1)
   local cntrprt_line = getline(cntrprt_lineno)
   setline(cntrprt_lineno, getline(curr_lineno))
@@ -592,6 +659,9 @@ _H.swap_with_below = function(lnum, store)
       function() _H.swap_with_below(curr_lineno, false) end,
     }
   end
+
+  -- enable undo history recording
+  vim_api.nvim_set_option_value("undolevels", ul_orig, { scope = "local" })
 end
 
 --------------------------------RE-POSITION END---------------------------------
