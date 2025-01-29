@@ -302,8 +302,8 @@ M.cmd.SetLangNum = function(a)
     table.insert(M.config.language_separator, " ")
   end
 
-  _H.clear_chunknr()
-  _H.show_chunknr()
+  M.ClearChunkNr()
+  M.ShowChunkNr()
 
   vim.print("Language number: " .. M.config.lang_num)
 end
@@ -362,6 +362,7 @@ M.cmd.Load = function(a)
   end
   if ret.config ~= nil then
     M.config = vim.tbl_deep_extend("force", M.config, ret.config)
+    rpst.config = vim.tbl_deep_extend("force", rpst.config, ret.config)
   end
 end
 
