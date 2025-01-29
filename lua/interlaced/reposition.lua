@@ -894,7 +894,7 @@ _H.locate_unaligned = function(direction)
   local chunk_lines
   local group_count1, group_count2
   for l = lineno, lastline, direction * (M.config.lang_num + 1) do
-    chunk_lines = vim_api.nvim_buf_get_lines(buf, l - 1, l - 1 + M.config.lang_num, true)
+    chunk_lines = vim_api.nvim_buf_get_lines(buf, l - 1, l - 1 + M.config.lang_num, false)
     for i, line1 in ipairs(chunk_lines) do
       group_count1 = _H.group_count(line1)
       -- Note: `vim.iter()` scans table input to decide if it is a list or a dict; to

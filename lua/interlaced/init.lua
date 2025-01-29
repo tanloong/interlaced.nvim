@@ -296,6 +296,7 @@ M.cmd.SetLangNum = function(a)
   -- :ItSetLangNum {int}
   local n = tonumber(a.args)
   M.config.lang_num = n
+  rpst.config.lang_num = n
 
   -- default separator when language number grows
   while #M.config.language_separator < n do
