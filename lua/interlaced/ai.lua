@@ -4,70 +4,24 @@ local M = {}
 
 local uv = vim.uv or vim.loop
 local logger = require("interlaced.logger")
+local _io = require("interlaced._io")
 
 local d = {
   messages = {
     {
       role = "system",
-      -- content = "There is a text pair containing an array of sentences in different languages separated by a newline. The pair is taken from a sequence of many other pairs, and I will give you adjacent pairs above and below the target one, forming 3 pairs in total, separated from each other by an empty line.\nThe cursor is on the first line of the middle pair and we'll call that line \"current line\". The number and order of languages across each pair is the same, and a line from another pair is \"counterpart\" of current line if it is at the same position as current line in its own pair.\nYour goal is to determine whether the middle pair is semantically aligned across languages and choose ONE function to be called against CURRENT LINE."
-      content = [[
-I will give you 3 text pairs: above, middle, and below. Each pair has 2 lines, one in Chinese and the other in English.
-
-The cursor is on the first line (or "current line") of the middle pair. The number and order of languages across each pair is the same, a line is "counterpart" of current line if they are at the same position as current line but in another pair. A pair is "aligned" if its Chinese line look like a translation to its English line. By "look like translation" I mean two texts from different languages conveys generally, but not necessarily exact, the same meaning, because some translation are libral translation instead of literal translation.
-
-Your goal is to determine whether each pair is semantically aligned across languages and choose function from the `tools` to be called.
-]]
+      content = _io.read("/home/usr/projects/interlaced.nvim/tmp.txt"),
     },
   },
 
   stream = false,
-  tools = {
-    {
-      type = "function",
-      ["function"] = {
-        name = "PushUp",
-        description =
-        [[This function is called when both the above pairs is not aligned, and the "current line" is aligned with the ending part of the above pair's another line. Push current line up to the pair above, joining to the end of its counterpart.]],
-        parameters = { ["type"] = "object", properties = vim.empty_dict() },
-      }
-    },
-    {
-      type = "function",
-      ["function"] = {
-        name = "NavigateUp",
-        description =
-        [[This function is called when both the above and middle pairs are not semantically aligned AND it can not be fixed by `PushUp` the "current line". Move cursor to the pair above at the counterpart of current line.]],
-        parameters = { ["type"] = "object", properties = vim.empty_dict() },
-      }
-    },
-    {
-      type = "function",
-      ["function"] = {
-        name = "PullBelow",
-        description =
-        [[This function is called when the above pair is aligned but the middle and below pairs are not. Pull the counterpart line from the pair below up to the end of current line.]],
-        parameters = { ["type"] = "object", properties = vim.empty_dict() },
-      }
-    },
-    {
-      type = "function",
-      ["function"] = {
-        name = "NavigateDown",
-        description =
-        [[This function is called when the both the above and middle pairs are semantically aligned across languages. Move cursor to the pair below at the counterpart of current line.]],
-        parameters = { ["type"] = "object", properties = vim.empty_dict() },
-      }
-    },
-
-  },
   -- tool_choice = "required",
-  tool_choice = "none",
+  -- tool_choice = "none",
   -- tool_choice = vim.NIL,
-  temperature = 1,
+  temperature = 0.3,
   top_p = 1,
-  max_tokens = 1000,
-  model = "gpt-4o-mini"
-  -- model = "glm-4-plus"
+  -- model = "gpt-4o-mini"
+  model = "glm-4-flash"
   -- model = "glm-4"
   -- model = "llama3.2",
 }
@@ -93,7 +47,7 @@ end
 M.get_response = function()
   local curr_lineno = vim.fn.line "." - 1
 
-  local lines = { "ABOVE:", "```", }
+  local lines = { "第一组:", "```", }
   for _, line in ipairs(vim.api.nvim_buf_get_lines(0, curr_lineno - 1 - 3, curr_lineno - 1, false)) do
     if line ~= "" then
       table.insert(lines, line)
@@ -101,17 +55,17 @@ M.get_response = function()
   end
   table.insert(lines, "```")
   table.insert(lines, "")
-  table.insert(lines, "MIDDLE:")
+  table.insert(lines, "第二组:")
   table.insert(lines, "```")
-  for _, line in ipairs(vim.api.nvim_buf_get_lines(0, curr_lineno - 1, curr_lineno - 1 + 2 + 1, false)) do
+  for i, line in ipairs(vim.api.nvim_buf_get_lines(0, curr_lineno - 1, curr_lineno - 1 + 2 + 1, false)) do
     if line ~= "" then
+      if i == 1 then line = "(光标) " .. line end
       table.insert(lines, line)
-      table.insert(lines, "")
     end
   end
   table.insert(lines, "```")
   table.insert(lines, "")
-  table.insert(lines, "BELOW:")
+  table.insert(lines, "第三组:")
   table.insert(lines, "```")
   for _, line in ipairs(vim.api.nvim_buf_get_lines(0, curr_lineno - 1 + 2 + 1 + 1, curr_lineno - 1 + 2 + 1 + 1 + 2 + 1, false)) do
     if line ~= "" then
@@ -127,9 +81,10 @@ M.get_response = function()
     return
   end
 
-  local secret = os.getenv "OPENAI_API_KEY"
-  local endpoint = os.getenv "OPENAI_API_BASE" .. "/chat/completions"
-  -- local endpoint = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+  -- local secret = os.getenv "OPENAI_API_KEY"
+  -- local endpoint = os.getenv "OPENAI_API_BASE" .. "/chat/completions"
+  local secret = os.getenv "ZHIPU_API_KEY"
+  local endpoint = os.getenv "ZHIPU_API_BASE" .. "/chat/completions"
   local args = { "--no-buffer", "-X", "POST", endpoint, "-H",
     "Content-Type: application/json",
     "-H", "Authorization: Bearer " .. secret,

@@ -12,9 +12,8 @@ local mt = require("interlaced.match")
 local rpst = require("interlaced.reposition")
 local utils = require("interlaced.utils")
 local logger = require("interlaced.logger")
+local _io = require("interlaced._io")
 
--- NOTE: Develop test mode !!
-require("interlaced._reload")
 
 local _H = {}
 local M = {
@@ -324,14 +323,8 @@ M.cmd.Dump = function(a)
       lang_num = M.config.lang_num
     },
   }
-  local f = io.open(path, "w")
-  if f == nil then
-    logger.error("Faled to open " .. path)
-    return
-  end
 
-  f:write(vim.json.encode(data))
-  f:close()
+  if not _io.write(path, vim.json.encode(data)) then return end
   logger.info("dumpped at " .. os.date("%H:%M:%S"))
 end
 
@@ -343,13 +336,8 @@ M.cmd.Load = function(a)
     path = a.args
   end
 
-  local f = io.open(path, "r")
-  if f == nil then
-    logger.error("Faled to open " .. path)
-    return
-  end
-  data = f:read("*a")
-  f:close()
+  local data = _io.read(path)
+  if data == nil then return end
 
   ok, ret = pcall(vim.json.decode, data)
   if not ok then return end
@@ -378,6 +366,20 @@ _H.store_orig_mapping = function(key, mode)
       table.insert(M._orig_mappings, vim_fn.maparg(key, m, false, true))
     end
   end
+end
+
+---User passed opts are lost.
+M.cmd.Reload = function()
+  local pkg_name = "interlaced"
+  require(pkg_name)._showing_chunknr = true
+  require(pkg_name).cmd.ToggleChunkNr()
+  for k, _ in pairs(package.loaded) do
+    if k:sub(1, #pkg_name) == pkg_name then
+      package.loaded[k] = nil
+    end
+  end
+  require(pkg_name).setup({})
+  vim.print(pkg_name .. " restarted at " .. os.date("%H:%M:%S"))
 end
 
 ---@param opts table
@@ -435,6 +437,7 @@ M.setup = function(opts)
   create_command(M.config.cmd_prefix .. "SplitEnglishSentences", rpst.cmd.SplitEnglishSentences,
     { nargs = 0, range = "%" })
   create_command(M.config.cmd_prefix .. "ToggleChunkNr", M.cmd.ToggleChunkNr, { nargs = 0 })
+  create_command(M.config.cmd_prefix .. "Reload", M.cmd.Reload, { nargs = 0 })
 end
 
 return M

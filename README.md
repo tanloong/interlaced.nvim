@@ -72,9 +72,9 @@ https://github.com/tanloong/interlaced.nvim/blob/20d0ff5cbd40361b50a9e8f02938f29
 
 **:ItLeaveAlone [lineno]** pushes down all lines (except the cursor line) in the chunk where `lineno` is at, puts a `-` as placeholder at each, and moves cursor down to the next chunk. Works on the cursor chunk if `lineno` is not provided.
 
-**:ItNextUnaligned** finds the next chunk has different kinds of highlighted matches across its lines and puts cursor there.
+**:ItNextUnaligned** moves cursor down to the chunk that has different kinds of highlighted matches across its lines.
 
-**:ItPrevUnaligned** ibidem but finds the previous chunk.
+**:ItPrevUnaligned** ibidem but moves cursor up.
 
 **:ItSetLangNum {num}** changes `lang_num`, i.e., how many lines should be in each chunk. This affects re-positioning actions: `ItPushUp(Pair|LeftPart)?`, `ItPullBelow(Pair)?`, `ItPushDown(RightPart)?`, `ItSwapWith(Above|Below)`, and `ItLeaveAlone`. When called without argument or with a single `?` it shows the current value.
 

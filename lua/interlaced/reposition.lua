@@ -396,6 +396,8 @@ _H.push_up_left_part = function(lnum, cnum, store)
   setline(cntrprt_lineno, cntrprt_line .. sep .. before_cursor)
   setline(curr_lineno, after_cursor)
 
+  vim_fn.cursor(curr_lineno, 1)
+
   if store then
     _H.store_undo {
       function() _H.push_up_left_part(curr_lineno, curr_colno, false) end,
