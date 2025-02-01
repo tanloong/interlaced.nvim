@@ -52,7 +52,7 @@ local test_segment = function(func, sents, sent_sep)
 end
 
 test_segment(
-  rpst.cmd.SplitEnglishSentences,
+  rpst.cmd.split_english_sentences,
   {
     "The small sign said, “Supervisor.”",
     "The man to whom the sign referred did not look up.",
@@ -68,7 +68,7 @@ test_segment(
   }, " ")
 
 test_segment(
-  rpst.cmd.SplitChineseSentences,
+  rpst.cmd.split_chinese_sentences,
   {
     "此开卷第一回也。",
     "作者自云：因曾历过一番梦幻之后，故将真事隐去，而借“通灵”之说，撰此《石头记》一书也。",

@@ -5,7 +5,6 @@ local vim_fn = vim.fn
 local vim_api = vim.api
 local vim_cmd = vim.cmd
 local vim_uv = vim.uv or vim.loop
-local create_command = vim_api.nvim_create_user_command
 
 local config = require("interlaced.config")
 local mt = require("interlaced.match")
@@ -13,7 +12,7 @@ local rpst = require("interlaced.reposition")
 local utils = require("interlaced.utils")
 local logger = require("interlaced.logger")
 local _io = require("interlaced._io")
-
+local _str = require("interlaced._str")
 
 local _H = {}
 local M = {
@@ -78,26 +77,26 @@ _H.InterlaceWithL = function(params, is_curbuf_l1)
   vim_fn.writefile(lines, interlaced_path)
   vim_cmd("edit " .. interlaced_path)
   if not M._is_mappings_on then
-    M.cmd.EnableKeybindings()
+    M.cmd.enable_keybindings()
   end
 end
 
 ---@param params table
 ---@return nil
-M.cmd.InterlaceWithL1 = function(params)
+M.cmd.interlace_with_l1 = function(params)
   _H.InterlaceWithL(params, false)
 end
 
 ---@param params table
 ---@return nil
-M.cmd.InterlaceWithL2 = function(params)
+M.cmd.interlace_with_l2 = function(params)
   _H.InterlaceWithL(params, true)
 end
 
 ---Interlace current buffer with files, placing current buffer at position {n}
 ---@param a table
 ---@return nil
-M.cmd.InterlaceAsL = function(a)
+M.cmd.interlace_as_l = function(a)
   if #a.fargs < 2 then
     logger.error("Usage: ItInterlaceAsL {n} {filepath} [filepath ...]")
     return
@@ -168,12 +167,12 @@ M.cmd.InterlaceAsL = function(a)
   M.config.lang_num = 1 + #a.fargs
   -- Enable keybindings if not already enabled
   if not M._is_mappings_on then
-    M.cmd.EnableKeybindings()
+    M.cmd.enable_keybindings()
   end
 end
 
 ---Enable custom keybindings as defined in M.config.mappings.
-M.cmd.EnableKeybindings = function()
+M.cmd.enable_keybindings = function()
   if type(M.config.enable_keybindings_hook) == "function" then M.config.enable_keybindings_hook() end
   if M._is_mappings_on then
     logger.warning("Keybindings already on, nothing to do")
@@ -191,7 +190,7 @@ M.cmd.EnableKeybindings = function()
 end
 
 ---Disable all keybindings set by EnableKeybindings.
-M.cmd.DisableKeybindings = function()
+M.cmd.disable_keybindings = function()
   if type(M.config.disable_keybindings_hook) == "function" then M.config.disable_keybindings_hook() end
   if not M._is_mappings_on then
     logger.warning("Keybindings already off, nothing to do")
@@ -222,7 +221,6 @@ M.ShowChunkNr = function()
   local last_lineno = vim_fn.line("$")
   local opts = { right_gravity = true, virt_text_win_col = 0, hl_mode = "combine" }
   local chunkno = 1
-  local text
   -- nvim_buf_set_extmark uses 0-based, end-exclusive index, thus - 1
   for lineno = 0, last_lineno - 2 * M.config.lang_num, M.config.lang_num + 1 do
     opts.virt_text = { { string.format("%s ", chunkno), "LineNr" } }
@@ -242,7 +240,7 @@ M.ClearChunkNr = function()
   M._showing_chunknr = false
 end
 
-M.cmd.ToggleChunkNr = function()
+M.cmd.toggle_chunk_number = function()
   if M._showing_chunknr == nil then M._showing_chunknr = false end
 
   if M._showing_chunknr then
@@ -252,7 +250,7 @@ M.cmd.ToggleChunkNr = function()
   end
 end
 
-M.cmd.SetSeparator = function(a)
+M.cmd.set_separator = function(a)
   -- :ItSetSeparator ?
   -- :ItSetSeparator
   if #a.fargs == 0 or a.args == "?" then
@@ -283,17 +281,17 @@ M.cmd.SetSeparator = function(a)
   vim.print("L" .. l .. " separator: '" .. sep .. "'")
 end
 
-
-M.cmd.SetLangNum = function(a)
+---@param n nil|string|number
+M.cmd.set_lang_num = function(n)
   -- :ItSetLangNum ?
   -- :ItSetLangNum
-  if #a.fargs == 0 or a.args == "?" then
+  if n == nil or n == "?" then
     vim.print("Language number: " .. M.config.lang_num)
     return
   end
 
   -- :ItSetLangNum {int}
-  local n = tonumber(a.args)
+  n = tonumber(n)
   M.config.lang_num = n
   rpst.config.lang_num = n
 
@@ -308,12 +306,9 @@ M.cmd.SetLangNum = function(a)
   vim.print("Language number: " .. M.config.lang_num)
 end
 
-M.cmd.Dump = function(a)
-  local path
-  if a == nil or a.args == nil or #a.args == 0 then
+M.cmd.dump = function(path)
+  if path == nil then
     path = vim.fs.joinpath(vim_fn.expand("%:h"), ".interlaced.json")
-  else
-    path = a.args
   end
   local data = {
     curpos = vim_api.nvim_win_get_cursor(0),
@@ -328,7 +323,7 @@ M.cmd.Dump = function(a)
   logger.info("dumpped at " .. os.date("%H:%M:%S"))
 end
 
-M.cmd.Load = function(a)
+M.cmd.load = function(a)
   local path
   if a == nil or a.args == nil or #a.args == 0 then
     path = vim.fs.joinpath(vim_fn.expand("%:h"), ".interlaced.json")
@@ -369,10 +364,10 @@ _H.store_orig_mapping = function(key, mode)
 end
 
 ---User passed opts are lost.
-M.cmd.Reload = function()
+M.cmd.reload = function()
   local pkg_name = "interlaced"
   require(pkg_name)._showing_chunknr = true
-  require(pkg_name).cmd.ToggleChunkNr()
+  require(pkg_name).cmd.toggle_chunk_number()
   for k, _ in pairs(package.loaded) do
     if k:sub(1, #pkg_name) == pkg_name then
       package.loaded[k] = nil
@@ -381,6 +376,39 @@ M.cmd.Reload = function()
   require(pkg_name).setup({})
   vim.print(pkg_name .. " restarted at " .. os.date("%H:%M:%S"))
 end
+
+vim_api.nvim_create_user_command("Interlaced", function(a)
+  ---@type string[]
+  for _, provider in ipairs({ rpst, mt, M }) do
+    cmd = provider.cmd[a.fargs[1]]
+    if cmd ~= nil then break end
+  end
+  if cmd ~= nil then
+    a.args = vim.trim(_str.removeprefix(a.args, a.fargs[1]))
+    table.remove(a.fargs, 1)
+    return cmd(a)
+  else
+    logger.error(string.format("%s not found", a.args))
+  end
+end, {
+  complete = function(_, line)
+    local candidates = vim.iter({ rpst.cmd, mt.cmd, M.cmd }):map(vim.tbl_keys):flatten():totable()
+    table.sort(candidates)
+    local args = vim.split(vim.trim(line), "%s+")
+    if vim.tbl_count(args) > 2 then return end
+    table.remove(args, 1)
+    ---@type string
+    local prefix = table.remove(args, 1)
+    if prefix and line:sub(-1) == " " then return end
+    if not prefix then
+      return candidates
+    else
+      return vim.fn.matchfuzzy(candidates, prefix)
+    end
+  end,
+  nargs = "*",
+  range = "%"
+})
 
 ---@param opts table
 ---@return nil
@@ -394,50 +422,11 @@ M.setup = function(opts)
   rpst.config = M.config
 
   if M.config.setup_mappings_now then
-    M.cmd.EnableKeybindings()
+    M.cmd.enable_keybindings()
   end
 
   -- create commands
   -- :h lua-guide-commands-create
-  create_command(M.config.cmd_prefix .. "DisableKeybindings", M.cmd.DisableKeybindings, { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "Dump", M.cmd.Dump, { complete = "file", nargs = "?" })
-  create_command(M.config.cmd_prefix .. "EnableKeybindings", M.cmd.EnableKeybindings, { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "InterlaceWithL1", M.cmd.InterlaceWithL1, { complete = "file", nargs = 1 })
-  create_command(M.config.cmd_prefix .. "InterlaceWithL2", M.cmd.InterlaceWithL2, { complete = "file", nargs = 1 })
-  create_command(M.config.cmd_prefix .. "InterlaceAsL", M.cmd.InterlaceAsL, { complete = "file", nargs = "+" })
-  create_command(M.config.cmd_prefix .. "Load", M.cmd.Load, { complete = "file", nargs = "?" })
-  create_command(M.config.cmd_prefix .. "SetLangNum", M.cmd.SetLangNum, { nargs = "?" })
-  create_command(M.config.cmd_prefix .. "SetSeparator", M.cmd.SetSeparator, { nargs = "*" })
-  create_command(M.config.cmd_prefix .. "ClearMatches", mt.cmd.ClearMatches, { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "ListHighlights", mt.cmd.ListHighlights, { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "ListMatches", mt.cmd.ListMatches, { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "MatchAdd", mt.cmd.MatchAdd, {})
-  create_command(M.config.cmd_prefix .. "MatchAddVisual", mt.cmd.MatchAddVisual, {})
-  create_command(M.config.cmd_prefix .. "MatchToggle", mt.cmd.MatchToggle, { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "DeInterlace", rpst.cmd.DeInterlace, { nargs = '?', range = "%" })
-  create_command(M.config.cmd_prefix .. "Interlace", rpst.cmd.Interlace, { nargs = '?', range = "%" })
-  create_command(M.config.cmd_prefix .. "NavigateDown", rpst.cmd.NavigateDown, { nargs = 0, count = 1 })
-  create_command(M.config.cmd_prefix .. "NavigateUp", rpst.cmd.NavigateUp, { nargs = 0, count = 1 })
-  create_command(M.config.cmd_prefix .. "NextUnaligned", rpst.cmd.NextUnaligned, { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "PrevUnaligned", rpst.cmd.PrevUnaligned, { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "PullBelow", rpst.cmd.PullBelow, { nargs = '?' })
-  create_command(M.config.cmd_prefix .. "PullBelowPair", rpst.cmd.PullBelowPair, { nargs = '?' })
-  create_command(M.config.cmd_prefix .. "PushDown", rpst.cmd.PushDown, { nargs = '?' })
-  create_command(M.config.cmd_prefix .. "PushDownRightPart", rpst.cmd.PushDownRightPart, { nargs = '*' })
-  create_command(M.config.cmd_prefix .. "PushUpLeftPart", rpst.cmd.PushUpLeftPart, { nargs = '*' })
-  create_command(M.config.cmd_prefix .. "PushUp", rpst.cmd.PushUp, { nargs = '?' })
-  create_command(M.config.cmd_prefix .. "PushUpPair", rpst.cmd.PushUpPair, { nargs = '?' })
-  create_command(M.config.cmd_prefix .. "LeaveAlone", rpst.cmd.LeaveAlone, { nargs = '?' })
-  create_command(M.config.cmd_prefix .. "SwapWithAbove", rpst.cmd.SwapWithAbove, { nargs = '?' })
-  create_command(M.config.cmd_prefix .. "SwapWithBelow", rpst.cmd.SwapWithBelow, { nargs = '?' })
-  create_command(M.config.cmd_prefix .. "Undo", rpst.cmd.Undo, { nargs = 0, count = 1 })
-  create_command(M.config.cmd_prefix .. "Redo", rpst.cmd.Redo, { nargs = 0, count = 1 })
-  create_command(M.config.cmd_prefix .. "SplitChineseSentences", rpst.cmd.SplitChineseSentences,
-    { nargs = 0, range = "%" })
-  create_command(M.config.cmd_prefix .. "SplitEnglishSentences", rpst.cmd.SplitEnglishSentences,
-    { nargs = 0, range = "%" })
-  create_command(M.config.cmd_prefix .. "ToggleChunkNr", M.cmd.ToggleChunkNr, { nargs = 0 })
-  create_command(M.config.cmd_prefix .. "Reload", M.cmd.Reload, { nargs = 0 })
 end
 
 return M

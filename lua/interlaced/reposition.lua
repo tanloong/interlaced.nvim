@@ -97,7 +97,7 @@ end
 
 ---Push current line up to the chunk above, joining to the end of its counterpart
 ---@param a table
-M.cmd.PushUp = function(a)
+M.cmd.push_up = function(a)
   local here, lineno, lnum
   if a ~= nil and a.fargs ~= nil then lnum = tonumber(a.fargs[1]) end
 
@@ -114,7 +114,7 @@ end
 
 ---Pull the counterpart line from the chunk below up to the end of current line
 ---@param a table
-M.cmd.PullBelow = function(a)
+M.cmd.pull_below = function(a)
   local here, lineno, lnum
   if a ~= nil and a.fargs ~= nil then lnum = tonumber(a.fargs[1]) end
 
@@ -259,7 +259,7 @@ end
 
 ---Push current chunk up to the one above, joining each line to the end of the corresponding counterpart
 ---@param a table
-M.cmd.PushUpPair = function(a)
+M.cmd.push_up_pair = function(a)
   local here = vim_api.nvim_win_get_cursor(0)
 
   local lineno
@@ -273,7 +273,7 @@ end
 
 ---Pull the chunk below up to current chunk, joining each line to the end of the corresponding line
 ---@param a table
-M.cmd.PullBelowPair = function(a)
+M.cmd.pull_below_pair = function(a)
   local here = vim_api.nvim_win_get_cursor(0)
 
   local lineno
@@ -285,7 +285,7 @@ M.cmd.PullBelowPair = function(a)
 end
 
 ---@param a table
-M.cmd.PushDownRightPart = function(a)
+M.cmd.push_down_right_part = function(a)
   local lnum, cnum
   if a ~= nil and a.fargs ~= nil then
     lnum = tonumber(a.fargs[1])
@@ -360,7 +360,7 @@ _H.push_down_right_part = function(lnum, cnum, store)
 end
 
 ---@param a table
-M.cmd.PushUpLeftPart = function(a)
+M.cmd.push_up_left_part = function(a)
   local lnum, cnum
   if a ~= nil and a.fargs ~= nil then
     lnum = tonumber(a.fargs[1])
@@ -450,7 +450,7 @@ end
 
 ---Push current line down to the chunk below
 ---@param a table
-M.cmd.PushDown = function(a)
+M.cmd.push_down = function(a)
   local lnum
   if a ~= nil and a.fargs ~= nil then
     lnum = tonumber(a.fargs[1])
@@ -459,7 +459,7 @@ M.cmd.PushDown = function(a)
 end
 
 ---@param a table
-M.cmd.LeaveAlone = function(a)
+M.cmd.leave_alone = function(a)
   local lnum
   if a ~= nil and a.fargs ~= nil then
     lnum = tonumber(a.fargs[1])
@@ -500,7 +500,7 @@ _H.leave_alone = function(lnum, store)
     if offset ~= languid then setline(curr_chunk_prev_lineno + offset, "-") end
   end
 
-  M.cmd.NavigateDown()
+  M.cmd.navigate_down()
   if vim_api.nvim__redraw ~= nil then
     vim_api.nvim__redraw({ win = 0, cursor = true, flush = true })
   end
@@ -591,7 +591,7 @@ _H.put_together = function(lnum, store)
 end
 
 ---@param a table
-M.cmd.SwapWithAbove = function(a)
+M.cmd.swap_with_above = function(a)
   local lnum
   if a ~= nil and a.fargs ~= nil then
     lnum = tonumber(a.fargs[1])
@@ -629,7 +629,7 @@ _H.swap_with_above = function(lnum, store)
 end
 
 ---@param a table
-M.cmd.SwapWithBelow = function(a)
+M.cmd.swap_with_below = function(a)
   local lnum
   if a ~= nil and a.fargs ~= nil then
     lnum = tonumber(a.fargs[1])
@@ -681,7 +681,7 @@ _H.store_redo = function(t)
   table.insert(M._redos, t)
 end
 
-M.cmd.Undo = function(a)
+M.cmd.undo = function(a)
   local c, t
   if a == nil then
     --called from keymapping
@@ -702,7 +702,7 @@ M.cmd.Undo = function(a)
   end
 end
 
-M.cmd.Redo = function(a)
+M.cmd.redo = function(a)
   local c, t
   if a == nil then
     --called from keymapping
@@ -724,7 +724,7 @@ M.cmd.Redo = function(a)
 end
 
 ---Move cursor to the chunk below at the counterpart of current line
-M.cmd.NavigateDown = function(a)
+M.cmd.navigate_down = function(a)
   local c
   if a == nil then
     --called from keymapping
@@ -738,7 +738,7 @@ M.cmd.NavigateDown = function(a)
 end
 
 ---Move cursor to the chunk above at the counterpart of current line
-M.cmd.NavigateUp = function(a)
+M.cmd.navigate_up = function(a)
   local c
   if a == nil then
     --called from keymapping
@@ -755,7 +755,7 @@ end
 ---upper- and lower-most empty lines are ignored
 ---requires the range is paired, [(, L2_1), (L1_2, L2_2), (L1_3, L2_3), ...] will make the buffer chaotic
 ---@param a table
-M.cmd.DeInterlace = function(a)
+M.cmd.deinterlace = function(a)
   -- 0 does not indicate current buffer to deletebufline(), has to use nvim_get_current_buf()
   local buf = vim_api.nvim_get_current_buf()
 
@@ -805,7 +805,7 @@ end
 ---Insert a newline at end of each Chinese sentence boundaries
 ---@param a table
 ---@return nil
-M.cmd.SplitChineseSentences = function(a)
+M.cmd.split_chinese_sentences = function(a)
   -- :h split()
   -- Use '\zs' at the end of the pattern to keep the separator.
   -- :echo split('bar:foo', ':\zs')
@@ -816,7 +816,7 @@ end
 ---Insert a newline at end of each English sentence boundaries
 ---@param a table
 ---@return nil
-M.cmd.SplitEnglishSentences = function(a)
+M.cmd.split_english_sentences = function(a)
   local regex = [[\v%(%(%(<al)@<!%(\u\l{,2})@<!(\.\a)@<!\.|[!?])+['’"”]?)\zs%(\s+|$)]]
   _H.SplitHelper(regex, a)
 end
@@ -826,7 +826,7 @@ end
 ---Empty lines are filtered out before the interlacement.
 ---@param a table
 ---@return nil
-M.cmd.Interlace = function(a)
+M.cmd.interlace = function(a)
   -- {start} is zero-based, thus (a.line1 - 1) and (a.line2 - 1)
   -- {end} is exclusive, thus (a.line2 - 1 + 1), thus a.line2
   local lines = vim.tbl_filter(function(s) return s ~= "" end,
@@ -926,7 +926,7 @@ _H.locate_unaligned = function(direction)
   vim.print("Not Found")
 end
 
-M.cmd.NextUnaligned = function() _H.locate_unaligned(1) end
-M.cmd.PrevUnaligned = function() _H.locate_unaligned(-1) end
+M.cmd.next_unaligned = function() _H.locate_unaligned(1) end
+M.cmd.prev_unaligned = function() _H.locate_unaligned(-1) end
 
 return M
