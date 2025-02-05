@@ -28,11 +28,11 @@ local M = {
 
 -- define colors
 for i, v in ipairs(M.colors) do
-  hl(M.ns, M.group_prefix .. i, v)
+  hl(M.ns, ("%s%d"):format(M.group_prefix, i), v)
 end
 
 _H.randcolor = function()
-  return M.group_prefix .. (math.fmod(vim_fn.rand(), #M.colors) + 1)
+  return ("%s%d"):format(M.group_prefix, (math.fmod(vim_fn.rand(), #M.colors) + 1))
 end
 
 ---@param color string|nil
@@ -120,16 +120,16 @@ M.cmd.clear_matches = function()
 end
 
 M.cmd.list_highlights = function()
-  vim.cmd([[filter /\v^]] .. M.group_prefix .. "/ highlight")
+  vim.cmd(("filter /\v^%s/ highlight"):format(M.group_prefix))
 end
 
 ---@return integer, integer the window id and buffer number
 M.cmd.list_matches = function()
   local origwinid = vim_api.nvim_get_current_win()
-  vim.cmd([[botright split | setlocal winfixheight | resize ]] .. vim.o.cmdwinheight)
+  vim.cmd(("botright split | setlocal winfixheight | resize %s"):format(vim.o.cmdwinheight))
   local listwinid = vim_api.nvim_get_current_win()
   local bufnr = vim_api.nvim_create_buf(true, true)
-  vim_api.nvim_buf_set_name(bufnr, "interlaced://" .. tostring(bufnr))
+  vim_api.nvim_buf_set_name(bufnr, ("interlaced://%s"):format(tostring(bufnr)))
   vim_api.nvim_set_current_buf(bufnr)
   vim.bo[bufnr].bufhidden = "wipe"
   vim.bo[bufnr].buftype = 'nowrite'
@@ -165,15 +165,9 @@ M.cmd.list_matches = function()
     for _, m in ipairs(matches) do
       if not vim.list_contains(display_patterns, m.pattern) then
         table.insert(display_lines,
-          string.format(
-            "%" .. id_len .. "d " ..
-            "%-" .. grp_len .. "s " ..
-            "%s",
-            m.id,
-            m.group,
-            m.pattern))
+          ("%" .. id_len .. "d " .. "%-" .. grp_len .. "s " .. "%s"):format(m.id, m.group, m.pattern))
         table.insert(display_patterns, m.pattern)
-        vim_fn.matchadd(m.group, "\\<" .. _H.escape_text(m.group) .. "\\>")
+        vim_fn.matchadd(m.group, ("\\<%s\\>"):format(_H.escape_text(m.group)))
       end
     end
 
@@ -275,15 +269,14 @@ M.cmd.match_add_visual = function()
   local listwin, listbuf = M.cmd.list_matches()
   local linestart = vim_api.nvim_buf_get_lines(listbuf, 0, 1, true)[1] == "" and 0 or -1
   vim_fn.win_execute(listwin,
-    [[call nvim_buf_set_lines(0, ]] ..
-    linestart .. [[, -1, 0, ["_ _ ]] .. pattern .. [["]) | normal! G02w]])
+    ("call nvim_buf_set_lines(0, %d, -1, 0, [\"_ _ %s\"]) | normal! G02w"):format(linestart, pattern))
 end
 
 M.cmd.match_add = function()
   local listwin, listbuf = M.cmd.list_matches()
   local linestart = vim_api.nvim_buf_get_lines(listbuf, 0, 1, true)[1] == "" and 0 or -1
   vim_fn.win_execute(listwin,
-    [[call nvim_buf_set_lines(0, ]] .. linestart .. [[, -1, 0, ["_ _ pattern"]) | exe "normal! G02wv$\<c-g>"]])
+    ("call nvim_buf_set_lines(0, %d, -1, 0, [\"_ _ pattern\"]) | exe \"normal! G02wv$\\<c-g>\"]]"):format(linestart))
 end
 
 return M

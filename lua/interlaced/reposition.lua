@@ -29,7 +29,7 @@ _H.append_to_3_lines_above = function(lineno)
 
   local languid = tostring(lineno % (M.config.lang_num + 1))
   local sep = M.config.language_separator[languid] or ""
-  line_target = line_target == "" and line or line_target .. sep .. line
+  line_target = line_target == "" and line or ("%s%s%s"):format(line_target, sep, line)
   setline(lineno_target, line_target)
   setline(lineno, "")
   return ret
@@ -327,8 +327,8 @@ _H.push_down_right_part = function(lnum, cnum, store)
   before_cursor = before_cursor:gsub([[%s+$]], "", 1)
   after_cursor = after_cursor:gsub([[^%s+]], "", 1)
   local sep = M.config.language_separator[tostring(languid)] or ""
-  before_cursor = vim_fn.substitute(before_cursor, vim_fn.escape(sep, [[\]]) .. [[$]], "", "")
-  after_cursor = vim_fn.substitute(after_cursor, [[^]] .. vim_fn.escape(sep, [[\]]), "", "")
+  before_cursor = vim_fn.substitute(before_cursor, ("%s$"):format(vim_fn.escape(sep, [[\]])), "", "")
+  after_cursor = vim_fn.substitute(after_cursor, ("^%s"):format(vim_fn.escape(sep, [[\]])), "", "")
   local cntrprt_lineno = curr_lineno + (M.config.lang_num + 1)
   setline(curr_lineno, before_cursor)
   setline(cntrprt_lineno, after_cursor)
@@ -388,12 +388,12 @@ _H.push_up_left_part = function(lnum, cnum, store)
   before_cursor = before_cursor:gsub([[%s+$]], "", 1)
   after_cursor = after_cursor:gsub([[^%s+]], "", 1)
   local sep = M.config.language_separator[tostring(languid)] or ""
-  before_cursor = vim_fn.substitute(before_cursor, vim_fn.escape(sep, [[\]]) .. [[$]], "", "")
-  after_cursor = vim_fn.substitute(after_cursor, [[^]] .. vim_fn.escape(sep, [[\]]), "", "")
+  before_cursor = vim_fn.substitute(before_cursor, ("%s$"):format(vim_fn.escape(sep, [[\]])), "", "")
+  after_cursor = vim_fn.substitute(after_cursor, ("^%s"):format(vim_fn.escape(sep, [[\]])), "", "")
 
   local cntrprt_lineno = curr_lineno - (M.config.lang_num + 1)
   local cntrprt_line = getline(cntrprt_lineno)
-  setline(cntrprt_lineno, cntrprt_line .. sep .. before_cursor)
+  setline(cntrprt_lineno, ("%s%s%s"):format(cntrprt_line, sep, before_cursor))
   setline(curr_lineno, after_cursor)
 
   vim_fn.cursor(curr_lineno, 1)
@@ -427,14 +427,14 @@ _H.push_down_right_part_join = function(lnum, cnum, store)
   before_cursor = before_cursor:gsub([[%s+$]], "", 1)
   after_cursor = after_cursor:gsub([[^%s+]], "", 1)
   local sep = M.config.language_separator[tostring(languid)] or ""
-  before_cursor = vim_fn.substitute(before_cursor, vim_fn.escape(sep, [[\]]) .. [[$]], "", "")
-  after_cursor = vim_fn.substitute(after_cursor, [[^]] .. vim_fn.escape(sep, [[\]]), "", "")
+  before_cursor = vim_fn.substitute(before_cursor, ("%s$"):format(vim_fn.escape(sep, [[\]])), "", "")
+  after_cursor = vim_fn.substitute(after_cursor, ("^%s"):format(vim_fn.escape(sep, [[\]])), "", "")
 
 
   local cntrprt_lineno = curr_lineno + (M.config.lang_num + 1)
   local cntrprt_line = getline(cntrprt_lineno)
   setline(curr_lineno, before_cursor)
-  setline(cntrprt_lineno, after_cursor .. sep .. cntrprt_line)
+  setline(cntrprt_lineno, ("%s%s%s"):format(after_cursor, sep, cntrprt_line))
 
   if store then
     _H.store_undo {
@@ -734,7 +734,7 @@ M.cmd.navigate_down = function(a)
     --called from command-line
     c = a.count ~= nil and a.count or 1
   end
-  vim_cmd([[normal! 0]] .. c * (M.config.lang_num + 1) .. "j")
+  vim_cmd(("normal! 0%sj"):format(c * (M.config.lang_num + 1)))
 end
 
 ---Move cursor to the chunk above at the counterpart of current line
@@ -748,7 +748,7 @@ M.cmd.navigate_up = function(a)
     --called from command-line
     c = a.count ~= nil and a.count or 1
   end
-  vim_cmd([[normal! 0]] .. c * (M.config.lang_num + 1) .. "k")
+  vim_cmd(("normal! 0%sk"):format(c * (M.config.lang_num + 1)))
 end
 
 ---:[range]ItDeInterlace [num], works on the whole buffer if range is not provided
@@ -908,14 +908,14 @@ _H.locate_unaligned = function(direction)
         if vim.tbl_count(group_count1) ~= vim.tbl_count(group_count2) then
           vim_api.nvim_win_set_cursor(0, { l, 1 })
           vim_cmd "normal! zz"
-          logger.info("Jumped over " .. math.abs(l - lineno_orig) .. " lines")
+          logger.info(("Jumped over %s lines"):format(math.abs(l - lineno_orig)))
           return
         end
         for k1, _ in pairs(group_count1) do
           if group_count2[k1] == nil then
             vim_api.nvim_win_set_cursor(0, { l, 1 })
             vim_cmd "normal! zz"
-            logger.info("Jumped over " .. math.abs(l - lineno_orig) .. " lines")
+            logger.info(("Jumped over %s lines"):format(math.abs(l - lineno_orig)))
             return
           end
         end

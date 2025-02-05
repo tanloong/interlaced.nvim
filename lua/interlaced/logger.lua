@@ -8,7 +8,7 @@ local M = {}
 M._log = function(msg, kind, history)
   vim.schedule(function()
     vim.api.nvim_echo({
-      { "Interlaced: " .. msg, kind },
+      { ("Interlaced: %s"):format(msg), kind },
     }, history, {})
   end)
 end

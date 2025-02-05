@@ -49,7 +49,7 @@ _H.get_timestr = function()
   while #stamp < 3 do
     stamp = "0" .. stamp
   end
-  return timestr .. "." .. stamp
+  return ("%s.%s"):format(timestr, stamp)
 end
 
 
@@ -60,8 +60,8 @@ _H.InterlaceWithL = function(params, is_curbuf_l1)
   local filepath = params.args
   local fh, err = io.open(filepath, "r")
   if not fh then
-    logger.warning("Failed to open file for reading: " .. filepath .. "\nError: " .. err)
-    return nil
+    logger.warning(("Failed to open file for reading: %s\nError: %s"):format(filepath, err))
+    return
   end
   local lines_that = {}
   for line in fh:lines() do
@@ -73,9 +73,9 @@ _H.InterlaceWithL = function(params, is_curbuf_l1)
   lines_that = vim.tbl_filter(function(s) return s:find("%S") ~= nil end, lines_that)
   local lines = is_curbuf_l1 and _H.zip(lines_this, lines_that) or _H.zip(lines_that, lines_this)
   local time = _H.get_timestr()
-  local interlaced_path = time .. ".interlaced.txt"
+  local interlaced_path = ("%s.interlaced.txt"):format(time)
   vim_fn.writefile(lines, interlaced_path)
-  vim_cmd("edit " .. interlaced_path)
+  vim_cmd(("edit %s"):format(interlaced_path))
   if not M._is_mappings_on then
     M.cmd.enable_keybindings()
   end
@@ -119,7 +119,7 @@ M.cmd.interlace_as_l = function(a)
   for _, filepath in ipairs(a.fargs) do
     local fh, err = io.open(filepath, "r")
     if not fh then
-      logger.warning("Failed to open file for reading: " .. filepath .. "\nError: " .. err)
+      logger.warning(("Failed to open file for reading: %s\nError: %s"):format(filepath, err))
       return
     end
     local lines = {}
@@ -135,7 +135,7 @@ M.cmd.interlace_as_l = function(a)
 
   -- Ensure n is within valid range
   if n > lang_num then
-    logger.error("n cannot be greater than the number of languages (" .. lang_num .. ")")
+    logger.error(("n cannot be greater than the number of languages (%s)"):format(lang_num))
     return
   end
 
@@ -160,9 +160,9 @@ M.cmd.interlace_as_l = function(a)
 
   -- Create a new buffer with the interlaced content
   local time = _H.get_timestr()
-  local interlaced_path = time .. ".interlaced.txt"
+  local interlaced_path = ("%s.interlaced.txt"):format(time)
   vim_fn.writefile(interlaced_lines, interlaced_path)
-  vim_cmd("edit " .. interlaced_path)
+  vim_cmd(("edit %s"):format(interlaced_path))
 
   M.config.lang_num = 1 + #a.fargs
   -- Enable keybindings if not already enabled
@@ -255,14 +255,14 @@ M.cmd.set_separator = function(a)
   -- :ItSetSeparator
   if #a.fargs == 0 or a.args == "?" then
     for _, l in ipairs(vim_fn.sort(vim.tbl_keys(M.config.language_separator))) do
-      vim.print("L" .. l .. ": '" .. M.config.language_separator[l] .. "'")
+      vim.print(("L%s: '%s'"):format(l, M.config.language_separator[l]))
     end
     return
   end
 
   -- :ItSetSeparator {int} {str}
   if #a.fargs ~= 2 then
-    logger.error("Expected 2 arguments, got " .. #a.fargs)
+    logger.error(("Expected 2 arguments, got %s"):format(#a.fargs))
     return
   end
   local l = a.fargs[1]
@@ -278,7 +278,7 @@ M.cmd.set_separator = function(a)
   end
 
   M.config.language_separator[tostring(l)] = sep
-  vim.print("L" .. l .. " separator: '" .. sep .. "'")
+  vim.print(("L%s separator: '%s'"):format(l, sep))
 end
 
 ---@param n nil|string|number
@@ -286,7 +286,7 @@ M.cmd.set_lang_num = function(n)
   -- :ItSetLangNum ?
   -- :ItSetLangNum
   if n == nil or n == "?" then
-    vim.print("Language number: " .. M.config.lang_num)
+    vim.print(("Language number: %s"):format(M.config.lang_num))
     return
   end
 
@@ -303,7 +303,7 @@ M.cmd.set_lang_num = function(n)
   M.ClearChunkNr()
   M.ShowChunkNr()
 
-  vim.print("Language number: " .. M.config.lang_num)
+  vim.print(("Language number: %s"):format(M.config.lang_num))
 end
 
 M.cmd.dump = function(path)
@@ -320,7 +320,7 @@ M.cmd.dump = function(path)
   }
 
   if not _io.write(path, vim.json.encode(data)) then return end
-  logger.info("dumpped at " .. os.date("%H:%M:%S"))
+  logger.info(("dumpped at %s"):format(os.date("%H:%M:%S")))
 end
 
 M.cmd.load = function(a)
@@ -374,7 +374,7 @@ M.cmd.reload = function()
     end
   end
   require(pkg_name).setup({})
-  vim.print(pkg_name .. " restarted at " .. os.date("%H:%M:%S"))
+  vim.print(("%s restarted at %s"):format(pkg_name, os.date("%H:%M:%S")))
 end
 
 vim_api.nvim_create_user_command("Interlaced", function(a)
