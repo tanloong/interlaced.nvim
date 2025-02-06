@@ -34,8 +34,6 @@ local config = {
     { "n", "ma", mt.cmd.match_add,              { noremap = true, buffer = true, nowait = true } },
     { "v", "ma", mt.cmd.match_add_visual,       { noremap = true, buffer = true, nowait = true } },
   },
-  -- automatically enable mappings for *interlaced.txt files
-  setup_mappings_now = (((vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())):find("interlaced%.txt$")) ~= nil),
   -- sentence separator to insert between when push- or pull-ing up
   language_separator = { ["1"] = "", ["2"] = " " },
   lang_num = 2,

@@ -6,7 +6,7 @@ local vim_api = vim.api
 local vim_cmd = vim.cmd
 local vim_uv = vim.uv or vim.loop
 
-local config = require("interlaced.config")
+local defaults = require("interlaced.config")
 local mt = require("interlaced.match")
 local rpst = require("interlaced.reposition")
 local utils = require("interlaced.utils")
@@ -410,23 +410,11 @@ end, {
   range = "%"
 })
 
----@param opts table
----@return nil
-M.setup = function(opts)
-  opts = opts or {}
-  if type(opts) ~= "table" then
-    logger.error(string.format("setup() expects table, but got %s:\n%s", type(opts), vim.inspect(opts)))
-    opts = {}
-  end
-  M.config = vim.tbl_deep_extend("force", config, opts)
-  rpst.config = M.config
 
-  if M.config.setup_mappings_now then
-    M.cmd.enable_keybindings()
-  end
+------------------------------------- init -------------------------------------
 
-  -- create commands
-  -- :h lua-guide-commands-create
-end
+global_opts = vim.g.interlaced or {}
+M.config = vim.tbl_deep_extend("force", defaults, global_opts)
+rpst.config = M.config
 
 return M
