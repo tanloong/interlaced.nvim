@@ -39,9 +39,6 @@ local default = {
   lang_num = 2,
   ---@type function|nil
   enable_keybindings_hook = function()
-    -- TODO: rationale
-    vim.opt_local.undofile = false
-
     vim.opt_local.signcolumn = "no"
     vim.opt_local.relativenumber = false
     vim.opt_local.number = false

@@ -13,24 +13,72 @@ Text re-positioning for bilingual sentence alignment.
 ```lua
 {
   "tanloong/interlaced.nvim",
-  config = function() require("interlaced").setup {} end,
+  config = function() require("interlaced") end,
   ft = "text",
 }
 ```
 
 ## Configuration
 
-https://github.com/tanloong/interlaced.nvim/blob/20d0ff5cbd40361b50a9e8f02938f29b9326d025/lua/interlaced/config.lua#L1-L66
+Use `vim.g.interlaced` option table and modifiy the field what you need before the plugin is loaded.
+
+```lua
+local it = require("interlaced")
+local rpst = require("interlaced.reposition")
+local mt = require("interlaced.match")
+
+vim.g.interlaced = {
+  keymaps = {
+    { "n", ",",  rpst.cmd.push_up,              { noremap = true, buffer = true, nowait = true } },
+    { "n", "<",  rpst.cmd.push_up_pair,         { noremap = true, buffer = true, nowait = true } },
+    { "n", "e",  rpst.cmd.push_up_left_part,    { noremap = true, buffer = true, nowait = true } },
+    { "n", ".",  rpst.cmd.pull_below,           { noremap = true, buffer = true, nowait = true } },
+    { "n", ">",  rpst.cmd.pull_below_pair,      { noremap = true, buffer = true, nowait = true } },
+    { "n", "d",  rpst.cmd.push_down_right_part, { noremap = true, buffer = true, nowait = true } },
+    { "n", "D",  rpst.cmd.push_down,            { noremap = true, buffer = true, nowait = true } },
+    { "n", "s",  rpst.cmd.leave_alone,          { noremap = true, buffer = true, nowait = true } },
+    { "n", "[e", rpst.cmd.swap_with_above,      { noremap = true, buffer = true, nowait = true } },
+    { "n", "]e", rpst.cmd.swap_with_below,      { noremap = true, buffer = true, nowait = true } },
+    { "n", "U",  rpst.cmd.undo,                 { noremap = true, buffer = true, nowait = true } },
+    { "n", "R",  rpst.cmd.redo,                 { noremap = true, buffer = true, nowait = true } },
+    { "n", "J",  rpst.cmd.navigate_down,        { noremap = true, buffer = true, nowait = true } },
+    { "n", "K",  rpst.cmd.navigate_up,          { noremap = true, buffer = true, nowait = true } },
+    { "n", "md", it.cmd.dump,                   { noremap = true, buffer = true, nowait = true } },
+    { "n", "ml", it.cmd.load,                   { noremap = true, buffer = true, nowait = true } },
+    { "n", "gn", rpst.cmd.next_unaligned,       { noremap = true, buffer = true, nowait = true } },
+    { "n", "gN", rpst.cmd.prev_unaligned,       { noremap = true, buffer = true, nowait = true } },
+    { "n", "mt", mt.cmd.match_toggle,           { noremap = true, buffer = true, nowait = true } },
+    { "n", "m;", mt.cmd.list_matches,           { noremap = true, buffer = true, nowait = true } },
+    { "n", "ma", mt.cmd.match_add,              { noremap = true, buffer = true, nowait = true } },
+    { "v", "ma", mt.cmd.match_add_visual,       { noremap = true, buffer = true, nowait = true } },
+  },
+  -- sentence separator to insert between when push- or pull-ing up
+  language_separator = { ["1"] = "", ["2"] = " " },
+  lang_num = 2,
+  ---@type function|nil
+  enable_keybindings_hook = function()
+    vim.opt_local.signcolumn = "no"
+    vim.opt_local.relativenumber = false
+    vim.opt_local.number = false
+    require "interlaced".ShowChunkNr()
+
+    -- load ./.interlaced.json if any
+    require "interlaced".cmd.load()
+  end,
+  ---@type function|nil
+  disable_keybindings_hook = nil,
+}
+```
 
 ## Commands
 
 | command | description |
 | - | - |
-| **:Interlaced enable_keybindings**  | applies keybindings specified in the `mappings` field of the table passed to `require("interlaced").setup()`. Original keymaps are backed up. |
-| **:Interlaced disable_keybindings**  | cancels `mappings` keybindings and restores backed up keymaps. |
+| **:Interlaced enable_keybindings**  | applies keybindings specified in the `keymaps` field in `vim.g.interlaced`. Original keymaps are backed up. |
+| **:Interlaced disable_keybindings**  | cancels `keymaps` keybindings and restores backed up keymaps. |
 | **:Interlaced split_english_sentences**  | identifies English sentence endings and insert a newline after each of them. Works linewise on the range when provided, the whole buffer if not. |
 | **:Interlaced split_chinese_sentences**  | ibidem but identifies Chinese sentence endings. |
-| **:Interlaced interlace_with_l1 {filepath}**  | mixes non-empty lines from current buffer with those from `filepath` into empty-line-separated pairs of lines. In each pair, lines from `filepath` are above those from current buffer. `mappings` keybindings are enabled if they have not been previously. |
+| **:Interlaced interlace_with_l1 {filepath}**  | mixes non-empty lines from current buffer with those from `filepath` into empty-line-separated pairs of lines. In each pair, lines from `filepath` are above those from current buffer. `keymaps` keybindings are enabled if they have not been previously. |
 | **:Interlaced interlace_with_l2 {filepath}**  | ibidem but lines from `filepath` are below those from current buffer. |
 | **:[range]Interlaced interlace [num]**  | mixes non-empty lines from current buffer into `num` empty-line-separated chunks. Works on the range when provided, the whole buffer if not. If `num` is not provided, `lang_num` field of the config table will be used. |
 | **:[range]Interlaced deinterlace [num]**  | Works on the range when provided, the whole buffer if not. If `num` is not provided, `lang_num` field of the config table will be used. |
@@ -56,8 +104,8 @@ https://github.com/tanloong/interlaced.nvim/blob/20d0ff5cbd40361b50a9e8f02938f29
 | **:Interlaced set_separator {num} {str}**  | changes sentence separator to `str` for the `num`th language, i.e., what should be inserted between on `ItPushUp(Pair|LeftPart)?` and `ItPullBelow(Pair)?`. When called without argument or with a single `?` it shows current values.  |
 | **:Interlaced navigate_down**  | moves cursor down by `lang_num + 1` lines. |
 | **:Interlaced navigate_up**  | moves cursor up by `lang_num + 1` lines. |
-| **:Interlaced undo**  | undoes the last re-positioning action. The undo list remembers at most 100 actions and forgets oldest ones thereafter. It costs too much RAM to remember changes of an interlaced buffer, because re-position affects every counterpart line from the cursor below, and the builtin *undo history* stores all of that. One `ItPushUp` at the beginning of an interlaced buffer with 190k lines increases memory use by 100M. To avoid memory creep, the plugin has an isolated *operation history* for re-positioning operations (`ItPushUp(Pair)`, `ItPullBelow(Pair)`, `ItPushDown(RightPart)`, and `ItLeaveAlone`). It disables the builtin undo history recording before a re-positioning operation is called, appends the operation to its operation history, and enables the undo history after. Note that the builtin undo history is cleared once an re-positioning operation is called. Use `:ItUndo` to undo a re-positioning operation. Use the traditional `u` to undo normal text changes like inserting, pasting, etc. |
-| **:Interlaced redo**  | undoes the last `ItUnDo`. |
+| **:Interlaced undo**  | undoes the last re-positioning action. The undo list remembers at most 100 re-positionings and forgets oldest ones thereafter. It costs too much RAM to remember changes of an interlaced buffer, because re-positioning affects every counterpart line from the cursor below, and the builtin *undo history* stores all of that. One `Interlaced push_up` at the beginning of an interlaced buffer with 190k lines increases memory use by 100M. To avoid memory creep, the plugin has an isolated *operation history* for re-positioning operations (`Interlaced push_up(_pair)`, `Interlaced pull_below(_pair)`, `Interlaced push_down(_right_part)`, and `Interlaced leave_alone`). It disables the builtin *undo history* recording before a re-positioning operation is called, appends the operation to its *operation history*, and enables the *undo history* afterwards. Note that the builtin *undo history* is cleared every time an re-positioning operation is called. Use `:Interlaced undo` to undo a re-positioning operation. Use the traditional `u` to undo normal text changes like inserting, pasting, etc. |
+| **:Interlaced redo**  | undoes the last `Interlaced undo`. |
 | **:Interlaced toggle_chunk_number**  | shows/hides chunk number at intervals. |
 | **:Interlaced dump [filepath]**  | saves workspace to `filepath`: cursor position, matches, language separator, and `lang_num`. Undo and redo lists are not saved. Uses `./.interlaced.json` when called without argument. |
 | **:Interlaced load [filepath]**  | loads workspace from `filepath`. Uses `./.interlaced.json` when called without argument. |
