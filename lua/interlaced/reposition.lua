@@ -809,7 +809,7 @@ M.cmd.split_chinese_sentences = function(a)
   -- :h split()
   -- Use '\zs' at the end of the pattern to keep the separator.
   -- :echo split('bar:foo', ':\zs')
-  local regex = [[\v[…。!！?？]+[”"’'）)】]*\zs]]
+  local regex = [[\v[…。｡．!！?？]+[”"’'）)】」﹂』》］｝〕〗〙〛〉]*\zs]]
   _H.SplitHelper(regex, a)
 end
 

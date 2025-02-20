@@ -9,7 +9,7 @@ local load = function()
   it = it or require("interlaced"); it.cmd.load()
 end
 
-local config = {
+local default = {
   keymaps = {
     { "n", ",",  rpst.cmd.push_up,              { noremap = true, buffer = true, nowait = true } },
     { "n", "<",  rpst.cmd.push_up_pair,         { noremap = true, buffer = true, nowait = true } },
@@ -54,4 +54,4 @@ local config = {
   disable_keybindings_hook = nil,
 }
 
-return config
+return default

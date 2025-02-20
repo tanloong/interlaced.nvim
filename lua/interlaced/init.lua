@@ -6,7 +6,7 @@ local vim_api = vim.api
 local vim_cmd = vim.cmd
 local vim_uv = vim.uv or vim.loop
 
-local defaults = require("interlaced.config")
+local default = require("interlaced.config")
 local mt = require("interlaced.match")
 local rpst = require("interlaced.reposition")
 local utils = require("interlaced.utils")
@@ -363,7 +363,6 @@ _H.store_orig_mapping = function(key, mode)
   end
 end
 
----User passed opts are lost.
 M.cmd.reload = function()
   local pkg_name = "interlaced"
   require(pkg_name)._showing_chunknr = true
@@ -373,7 +372,7 @@ M.cmd.reload = function()
       package.loaded[k] = nil
     end
   end
-  require(pkg_name).setup({})
+  require(pkg_name)
   vim.print(("%s restarted at %s"):format(pkg_name, os.date("%H:%M:%S")))
 end
 
@@ -414,7 +413,7 @@ end, {
 ------------------------------------- init -------------------------------------
 
 global_opts = vim.g.interlaced or {}
-M.config = vim.tbl_deep_extend("force", defaults, global_opts)
+M.config = vim.tbl_deep_extend("force", default, global_opts)
 rpst.config = M.config
 
 return M
