@@ -36,7 +36,7 @@ _H.append_to_3_lines_above = function(lineno)
 end
 
 _H.delete_trailing_empty_lines = function()
-  local last_lineno = vim_fn.line("$")
+  local last_lineno = vim_api.nvim_buf_line_count(0)
   local buf = vim_api.nvim_get_current_buf()
   while getline(last_lineno):match("^%s*$") do
     vim_fn.deletebufline(buf, last_lineno)
@@ -56,7 +56,7 @@ _H.push_up = function(lnum, here, store)
   local cnum = _H.append_to_3_lines_above(lnum)
 
   local lineno = lnum + (M.config.lang_num + 1)
-  local last_lineno = vim_fn.line("$")
+  local last_lineno = vim_api.nvim_buf_line_count(0)
 
   local soft_last_lineno = math.min(last_lineno, lineno + 200 * (M.config.lang_num + 1))
 
@@ -149,7 +149,7 @@ _H.push_up_pair = function(lnum, here, store)
   for offset = 1, M.config.lang_num do table.insert(cnums, _H.append_to_3_lines_above(lineno + offset)) end
 
   lineno = lineno + (M.config.lang_num + 1)
-  local last_lineno = vim_fn.line("$")
+  local last_lineno = vim_api.nvim_buf_line_count(0)
 
   local soft_last_lineno = math.min(last_lineno, lineno + 200 * (M.config.lang_num + 1))
   while lineno <= soft_last_lineno do
@@ -204,7 +204,7 @@ _H.downward_pair = function(lnum, cnums, store)
   local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
   vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
 
-  local last_lineno = vim_fn.line("$")
+  local last_lineno = vim_api.nvim_buf_line_count(0)
   for _ = 1, M.config.lang_num + 1 do vim_fn.append(last_lineno, "") end
 
   local last_chunk_prev_lineno = last_lineno - last_lineno % (M.config.lang_num + 1)
@@ -279,7 +279,7 @@ M.cmd.pull_below_pair = function(a)
   local lineno
   if a ~= nil and a.fargs ~= nil then lineno = tonumber(a.fargs[1]) end
   if lineno == nil then lineno = here[1] end
-  if vim_fn.line("$") - lineno <= (M.config.lang_num) then return end
+  if vim_api.nvim_buf_line_count(0) - lineno <= (M.config.lang_num) then return end
 
   _H.push_up_pair(lineno + (M.config.lang_num + 1), here, true)
 end
@@ -309,7 +309,7 @@ _H.push_down_right_part = function(lnum, cnum, store)
   local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
   vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
 
-  local last_lineno = vim_fn.line("$")
+  local last_lineno = vim_api.nvim_buf_line_count(0)
   for _ = 1, M.config.lang_num + 1 do vim_fn.append(last_lineno, "") end
   local last_counterpart_lineno = last_lineno - (last_lineno - curr_lineno) % (M.config.lang_num + 1)
   local soft_last_counterpart_lineno = math.min(last_counterpart_lineno, curr_lineno + 200 * (M.config.lang_num + 1))
@@ -479,7 +479,7 @@ _H.leave_alone = function(lnum, store)
   local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
   vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
 
-  local last_lineno = vim_fn.line("$")
+  local last_lineno = vim_api.nvim_buf_line_count(0)
   for _ = 1, M.config.lang_num + 1 do vim_fn.append(last_lineno, "") end
 
   local last_chunk_prev_lineno = last_lineno - last_lineno % (M.config.lang_num + 1)
@@ -548,7 +548,7 @@ _H.put_together = function(lnum, store)
   vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
 
   local lineno = curr_chunk_prev_lineno + (M.config.lang_num + 1)
-  local last_lineno = vim_fn.line("$")
+  local last_lineno = vim_api.nvim_buf_line_count(0)
   local soft_last_lineno = math.min(last_lineno, lineno + 200 * (M.config.lang_num + 1))
 
   while lineno <= soft_last_lineno do
@@ -641,7 +641,7 @@ end
 ---@param store boolean|nil
 _H.swap_with_below = function(lnum, store)
   local curr_lineno = lnum or vim_fn.line(".")
-  if curr_lineno % (M.config.lang_num + 1) == 0 or vim_fn.line("$") - curr_lineno + 1 <= M.config.lang_num then return end
+  if curr_lineno % (M.config.lang_num + 1) == 0 or vim_api.nvim_buf_line_count(0) - curr_lineno + 1 <= M.config.lang_num then return end
   if store == nil then store = true end
 
   -- temporarily disable undo history recording
@@ -891,7 +891,7 @@ _H.locate_unaligned = function(direction)
   local lineno = lineno_orig + direction * (M.config.lang_num + 1)
   -- locate first line of the nearest chunk below/above and start search from there
   while lineno % (M.config.lang_num + 1) ~= 1 do lineno = lineno + direction end
-  local lastline = direction == 1 and vim_fn.line("$") or 1
+  local lastline = direction == 1 and vim_api.nvim_buf_line_count(0) or 1
 
   local chunk_lines
   local group_count1, group_count2

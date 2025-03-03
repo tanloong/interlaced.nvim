@@ -218,7 +218,7 @@ M.ShowChunkNr = function()
   if M._showing_chunknr == true then return end
   if M._ns_id == nil then M._ns_id = vim_api.nvim_create_namespace("interlaced") end
 
-  local last_lineno = vim_fn.line("$")
+  local last_lineno = vim_api.nvim_buf_line_count(0)
   local opts = { right_gravity = true, virt_text_win_col = 0, hl_mode = "combine" }
   local chunkno = 1
   -- nvim_buf_set_extmark uses 0-based, end-exclusive index, thus - 1
