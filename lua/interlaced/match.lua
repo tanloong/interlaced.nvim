@@ -276,7 +276,7 @@ M.cmd.match_add = function()
   local listwin, listbuf = M.cmd.list_matches()
   local linestart = vim_api.nvim_buf_get_lines(listbuf, 0, 1, true)[1] == "" and 0 or -1
   vim_fn.win_execute(listwin,
-    ("call nvim_buf_set_lines(0, %d, -1, 0, [\"_ _ pattern\"]) | exe \"normal! G02wv$\\<c-g>\"]]"):format(linestart))
+    ("call nvim_buf_set_lines(0, %d, -1, 0, [\"_ _ pattern\"]) | exe \"normal! G02wv$\\<c-g>\""):format(linestart))
 end
 
 return M
