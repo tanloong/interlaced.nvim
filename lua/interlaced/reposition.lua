@@ -5,6 +5,7 @@ local getline = vim.fn.getline
 local vim_fn = vim.fn
 local vim_api = vim.api
 local vim_cmd = vim.cmd
+local sys = vim.system
 
 local mt = require("interlaced.match")
 local logger = require("interlaced.logger")
@@ -17,6 +18,10 @@ local M = {
   config = nil,
   cmd = {},
 }
+
+_H.bell = function()
+  sys({ "ffplay", "-nodisp", "-autoexit", "/usr/share/sounds/freedesktop/stereo/bell.oga", }, {}, function() end)
+end
 
 -------------------------------RE-POSITION START--------------------------------
 
@@ -48,6 +53,8 @@ end
 _H.push_up = function(lnum, here, store)
   if lnum < (M.config.lang_num + 1) or lnum % (M.config.lang_num + 1) == 0 then return end
   if store == nil then store = true end
+
+  _H.bell()
 
   -- temporarily disable undo history recording
   local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
@@ -138,6 +145,8 @@ _H.push_up_pair = function(lnum, here, store)
   if lnum < (M.config.lang_num + 1) or lnum % (M.config.lang_num + 1) == 0 then return end
   if store == nil then store = true end
 
+  _H.bell()
+
   -- temporarily disable undo history recording
   local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
   vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
@@ -199,6 +208,8 @@ end
 _H.downward_pair = function(lnum, cnums, store)
   local curr_chunk_prev_lineno = lnum - lnum % (M.config.lang_num + 1)
   if store == nil then store = true end
+
+  _H.bell()
 
   -- temporarily disable undo history recording
   local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
@@ -305,6 +316,8 @@ _H.push_down_right_part = function(lnum, cnum, store)
   local curr_colno = cnum or vim_fn.col(".")
   if store == nil then store = true end
 
+  _H.bell()
+
   -- temporarily disable undo history recording
   local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
   vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
@@ -377,6 +390,8 @@ _H.push_up_left_part = function(lnum, cnum, store)
   local curr_colno = cnum or vim_fn.col(".")
   if store == nil then store = true end
 
+  _H.bell()
+
   -- temporarily disable undo history recording
   local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
   vim_api.nvim_set_option_value("undolevels", -1, { scope = "local" })
@@ -416,6 +431,8 @@ _H.push_down_right_part_join = function(lnum, cnum, store)
   if languid == 0 or vim_fn.line('$') - curr_lineno < M.config.lang_num then return end
   local curr_colno = cnum or vim_fn.col(".")
   if store == nil then store = true end
+
+  _H.bell()
 
   -- temporarily disable undo history recording
   local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
@@ -474,6 +491,8 @@ _H.leave_alone = function(lnum, store)
   local languid = curr_lineno % (M.config.lang_num + 1)
   if languid == 0 then return end
   if store == nil then store = true end
+
+  _H.bell()
 
   -- temporarily disable undo history recording
   local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
@@ -542,6 +561,8 @@ _H.put_together = function(lnum, store)
   if languid == 0 then return end
   local curr_chunk_prev_lineno = curr_lineno - languid
   if store == nil then store = true end
+
+  _H.bell()
 
   -- temporarily disable undo history recording
   local ul_orig = vim_api.nvim_get_option_value("undolevels", { scope = "local" })
