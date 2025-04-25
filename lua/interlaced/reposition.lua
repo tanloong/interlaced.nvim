@@ -10,17 +10,20 @@ local sys = vim.system
 local mt = require("interlaced.match")
 local logger = require("interlaced.logger")
 
+
 local _H = {}
 local M = {
   _H = _H,
   _undos = {}, -- store reverse changes of PushUp(Pair), PullBelow(Pair), PushDown(RightPart), LeaveAlone to undo
   _redos = {},
-  config = nil,
-  cmd = {},
+  action = {},
+  config = require("interlaced.config")
 }
 
 _H.bell = function()
-  sys({ "ffplay", "-nodisp", "-autoexit", "/usr/share/sounds/freedesktop/stereo/bell.oga", }, {}, function() end)
+  if M.config.sound_feedback then
+  sys({ "ffplay", "-nodisp", "-autoexit", "/usr/lib/libreoffice/share/gallery/sounds/laser.wav", }, {}, function() end)
+  end
 end
 
 -------------------------------RE-POSITION START--------------------------------
@@ -104,7 +107,7 @@ end
 
 ---Push current line up to the chunk above, joining to the end of its counterpart
 ---@param a table
-M.cmd.push_up = function(a)
+M.action.push_up = function(a)
   local here, lineno, lnum
   if a ~= nil and a.fargs ~= nil then lnum = tonumber(a.fargs[1]) end
 
@@ -121,7 +124,7 @@ end
 
 ---Pull the counterpart line from the chunk below up to the end of current line
 ---@param a table
-M.cmd.pull_below = function(a)
+M.action.pull_below = function(a)
   local here, lineno, lnum
   if a ~= nil and a.fargs ~= nil then lnum = tonumber(a.fargs[1]) end
 
@@ -270,7 +273,7 @@ end
 
 ---Push current chunk up to the one above, joining each line to the end of the corresponding counterpart
 ---@param a table
-M.cmd.push_up_pair = function(a)
+M.action.push_up_pair = function(a)
   local here = vim_api.nvim_win_get_cursor(0)
 
   local lineno
@@ -284,7 +287,7 @@ end
 
 ---Pull the chunk below up to current chunk, joining each line to the end of the corresponding line
 ---@param a table
-M.cmd.pull_below_pair = function(a)
+M.action.pull_below_pair = function(a)
   local here = vim_api.nvim_win_get_cursor(0)
 
   local lineno
@@ -296,7 +299,7 @@ M.cmd.pull_below_pair = function(a)
 end
 
 ---@param a table
-M.cmd.push_down_right_part = function(a)
+M.action.push_down_right_part = function(a)
   local lnum, cnum
   if a ~= nil and a.fargs ~= nil then
     lnum = tonumber(a.fargs[1])
@@ -373,7 +376,7 @@ _H.push_down_right_part = function(lnum, cnum, store)
 end
 
 ---@param a table
-M.cmd.push_up_left_part = function(a)
+M.action.push_up_left_part = function(a)
   local lnum, cnum
   if a ~= nil and a.fargs ~= nil then
     lnum = tonumber(a.fargs[1])
@@ -467,7 +470,7 @@ end
 
 ---Push current line down to the chunk below
 ---@param a table
-M.cmd.push_down = function(a)
+M.action.push_down = function(a)
   local lnum
   if a ~= nil and a.fargs ~= nil then
     lnum = tonumber(a.fargs[1])
@@ -476,7 +479,7 @@ M.cmd.push_down = function(a)
 end
 
 ---@param a table
-M.cmd.leave_alone = function(a)
+M.action.leave_alone = function(a)
   local lnum
   if a ~= nil and a.fargs ~= nil then
     lnum = tonumber(a.fargs[1])
@@ -519,7 +522,7 @@ _H.leave_alone = function(lnum, store)
     if offset ~= languid then setline(curr_chunk_prev_lineno + offset, "-") end
   end
 
-  M.cmd.navigate_down()
+  M.action.navigate_down()
   if vim_api.nvim__redraw ~= nil then
     vim_api.nvim__redraw({ win = 0, cursor = true, flush = true })
   end
@@ -612,7 +615,7 @@ _H.put_together = function(lnum, store)
 end
 
 ---@param a table
-M.cmd.swap_with_above = function(a)
+M.action.swap_with_above = function(a)
   local lnum
   if a ~= nil and a.fargs ~= nil then
     lnum = tonumber(a.fargs[1])
@@ -650,7 +653,7 @@ _H.swap_with_above = function(lnum, store)
 end
 
 ---@param a table
-M.cmd.swap_with_below = function(a)
+M.action.swap_with_below = function(a)
   local lnum
   if a ~= nil and a.fargs ~= nil then
     lnum = tonumber(a.fargs[1])
@@ -702,7 +705,7 @@ _H.store_redo = function(t)
   table.insert(M._redos, t)
 end
 
-M.cmd.undo = function(a)
+M.action.undo = function(a)
   local c, t
   if a == nil then
     --called from keymapping
@@ -723,7 +726,7 @@ M.cmd.undo = function(a)
   end
 end
 
-M.cmd.redo = function(a)
+M.action.redo = function(a)
   local c, t
   if a == nil then
     --called from keymapping
@@ -745,7 +748,7 @@ M.cmd.redo = function(a)
 end
 
 ---Move cursor to the chunk below at the counterpart of current line
-M.cmd.navigate_down = function(a)
+M.action.navigate_down = function(a)
   local c
   if a == nil then
     --called from keymapping
@@ -759,7 +762,7 @@ M.cmd.navigate_down = function(a)
 end
 
 ---Move cursor to the chunk above at the counterpart of current line
-M.cmd.navigate_up = function(a)
+M.action.navigate_up = function(a)
   local c
   if a == nil then
     --called from keymapping
@@ -776,7 +779,7 @@ end
 ---upper- and lower-most empty lines are ignored
 ---requires the range is paired, [(, L2_1), (L1_2, L2_2), (L1_3, L2_3), ...] will make the buffer chaotic
 ---@param a table
-M.cmd.deinterlace = function(a)
+M.action.deinterlace = function(a)
   -- 0 does not indicate current buffer to deletebufline(), has to use nvim_get_current_buf()
   local buf = vim_api.nvim_get_current_buf()
 
@@ -826,7 +829,7 @@ end
 ---Insert a newline at end of each Chinese sentence boundaries
 ---@param a table
 ---@return nil
-M.cmd.split_chinese_sentences = function(a)
+M.action.split_chinese_sentences = function(a)
   -- :h split()
   -- Use '\zs' at the end of the pattern to keep the separator.
   -- :echo split('bar:foo', ':\zs')
@@ -837,17 +840,17 @@ end
 ---Insert a newline at end of each English sentence boundaries
 ---@param a table
 ---@return nil
-M.cmd.split_english_sentences = function(a)
+M.action.split_english_sentences = function(a)
   local regex = [[\v%(%(%(<al)@<!%(\u\l{,2})@<!(\.\a)@<!\.|[!?])+['’"”]?)\zs%(\s+|$)]]
   _H.SplitHelper(regex, a)
 end
 
 ---:[range]ItInterlace [lang_num]
----Works on the whole buffer when range is not provided. Uses config.lang_num when lang_num is not provided.
+---Works on the whole buffer when range is not provided. Uses M.config.lang_num when lang_num is not provided.
 ---Empty lines are filtered out before the interlacement.
 ---@param a table
 ---@return nil
-M.cmd.interlace = function(a)
+M.action.interlace = function(a)
   -- {start} is zero-based, thus (a.line1 - 1) and (a.line2 - 1)
   -- {end} is exclusive, thus (a.line2 - 1 + 1), thus a.line2
   local lines = vim.tbl_filter(function(s) return s ~= "" end,
@@ -947,7 +950,7 @@ _H.locate_unaligned = function(direction)
   vim.print("Not Found")
 end
 
-M.cmd.next_unaligned = function() _H.locate_unaligned(1) end
-M.cmd.prev_unaligned = function() _H.locate_unaligned(-1) end
+M.action.next_unaligned = function() _H.locate_unaligned(1) end
+M.action.prev_unaligned = function() _H.locate_unaligned(-1) end
 
 return M

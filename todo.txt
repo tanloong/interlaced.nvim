@@ -1,3 +1,5 @@
+* 现在 lazy.nvim 里 config 下的 vim.g.interlaced 会在 interlaced.nvim init 之后才能加载，但 interlaced.nvim 只会在 init 时读取一下 vim.g.interlaced，导致用户在 lazy.nvim config 下设置的  vim.g.interlaced 实际上不生效。而且如果在 runtime 下用户动态修改 vim.g.interlaced，interlaced.nvim 也无法更新配置。应该让 interlaced.nvim 每次读取配置时都读一遍 vim.g.interlaced，参考 glepnir。 -- done
+
 related efforts:
   https://github.com/azabiong/vim-highlighter/blob/main/autoload/highlighter.vim
   https://github.com/inkarkat/vim-mark

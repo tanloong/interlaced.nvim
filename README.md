@@ -23,50 +23,51 @@ Text re-positioning for bilingual sentence alignment.
 Use `vim.g.interlaced` option table and modifiy the field what you need before the plugin is loaded.
 
 ```lua
-local it = require("interlaced")
-local rpst = require("interlaced.reposition")
-local mt = require("interlaced.match")
-
 vim.g.interlaced = {
   keymaps = {
-    { "n", ",",  rpst.cmd.push_up,              { noremap = true, buffer = true, nowait = true } },
-    { "n", "<",  rpst.cmd.push_up_pair,         { noremap = true, buffer = true, nowait = true } },
-    { "n", "e",  rpst.cmd.push_up_left_part,    { noremap = true, buffer = true, nowait = true } },
-    { "n", ".",  rpst.cmd.pull_below,           { noremap = true, buffer = true, nowait = true } },
-    { "n", ">",  rpst.cmd.pull_below_pair,      { noremap = true, buffer = true, nowait = true } },
-    { "n", "d",  rpst.cmd.push_down_right_part, { noremap = true, buffer = true, nowait = true } },
-    { "n", "D",  rpst.cmd.push_down,            { noremap = true, buffer = true, nowait = true } },
-    { "n", "s",  rpst.cmd.leave_alone,          { noremap = true, buffer = true, nowait = true } },
-    { "n", "[e", rpst.cmd.swap_with_above,      { noremap = true, buffer = true, nowait = true } },
-    { "n", "]e", rpst.cmd.swap_with_below,      { noremap = true, buffer = true, nowait = true } },
-    { "n", "U",  rpst.cmd.undo,                 { noremap = true, buffer = true, nowait = true } },
-    { "n", "R",  rpst.cmd.redo,                 { noremap = true, buffer = true, nowait = true } },
-    { "n", "J",  rpst.cmd.navigate_down,        { noremap = true, buffer = true, nowait = true } },
-    { "n", "K",  rpst.cmd.navigate_up,          { noremap = true, buffer = true, nowait = true } },
-    { "n", "md", it.cmd.dump,                   { noremap = true, buffer = true, nowait = true } },
-    { "n", "ml", it.cmd.load,                   { noremap = true, buffer = true, nowait = true } },
-    { "n", "gn", rpst.cmd.next_unaligned,       { noremap = true, buffer = true, nowait = true } },
-    { "n", "gN", rpst.cmd.prev_unaligned,       { noremap = true, buffer = true, nowait = true } },
-    { "n", "mt", mt.cmd.match_toggle,           { noremap = true, buffer = true, nowait = true } },
-    { "n", "m;", mt.cmd.list_matches,           { noremap = true, buffer = true, nowait = true } },
-    { "n", "ma", mt.cmd.match_add,              { noremap = true, buffer = true, nowait = true } },
-    { "v", "ma", mt.cmd.match_add_visual,       { noremap = true, buffer = true, nowait = true } },
+    { "n", ",", "push_up"},
+    { "n", "<", "push_up_pair"},
+    { "n", "e", "push_up_left_part"},
+    { "n", ".", "pull_below"},
+    { "n", ">", "pull_below_pair"},
+    { "n", "d", "push_down_right_part"},
+    { "n", "D", "push_down"},
+    { "n", "s", "leave_alone"},
+    { "n", "[e", "swap_with_above"},
+    { "n", "]e", "swap_with_below"},
+    { "n", "U", "undo"},
+    { "n", "R", "redo"},
+    { "n", "J", "navigate_down"},
+    { "n", "K", "navigate_up"},
+    { "n", "md", "dump"},
+    { "n", "ml", "load"},
+    { "n", "gn", "next_unaligned"},
+    { "n", "gN", "prev_unaligned"},
+    { "n", "mt", "match_toggle"},
+    { "n", "m;", "list_matches"},
+    { "n", "ma", "match_add"},
+    { "v", "ma", "match_add_visual"},
   },
-  -- sentence separator to insert between when push- or pull-ing up
-  language_separator = { ["1"] = "", ["2"] = " " },
+  setup_mappings_now = false,
+  separators = { ["1"] = "", ["2"] = " " },
   lang_num = 2,
-  ---@type function|nil
   enable_keybindings_hook = function()
+    -- disable coc to avoid lag on :w
+    if vim.g.did_coc_loaded ~= nil then vim.cmd [[CocDisable]] end
+    -- disable the undo history saving, which is time-consuming and causes lag
+    vim.opt_local.undofile = false
+    -- pcall(vim.cmd.nunmap, "j")
+    -- pcall(vim.cmd.nunmap, "k")
+    -- pcall(vim.cmd.nunmap, "gj")
+    -- pcall(vim.cmd.nunmap, "gk")
+    -- vim.opt_local.undolevels = -1
     vim.opt_local.signcolumn = "no"
     vim.opt_local.relativenumber = false
     vim.opt_local.number = false
+    require "interlaced".action.load()
     require "interlaced".ShowChunkNr()
-
-    -- load ./.interlaced.json if any
-    require "interlaced".cmd.load()
   end,
-  ---@type function|nil
-  disable_keybindings_hook = nil,
+  sound_feedback = false,
 }
 ```
 

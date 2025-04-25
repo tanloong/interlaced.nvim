@@ -6,8 +6,8 @@ local vim_api = vim.api
 local autocmd = vim.api.nvim_create_autocmd
 local augroup = vim.api.nvim_create_augroup
 
-logger = require("interlaced.logger")
-utils = require("interlaced.utils")
+local logger = require("interlaced.logger")
+local utils = require("interlaced.utils")
 
 local _H = {}
 local M = {
@@ -23,7 +23,7 @@ local M = {
   group_prefix = "ItColor",
   -- ns = vim.api.nvim_create_namespace("interlaced.nvim"),
   ns = 0,
-  cmd = {},
+  action = {},
 }
 
 -- define colors
@@ -100,7 +100,7 @@ _H.set_enable_matches = function(enable)
   else
     if not M.is_hl_matches then return end
     M._matches = utils.match_list2dict(vim_fn.getmatches())
-    M.cmd.clear_matches()
+    M.action.clear_matches()
     M.is_hl_matches = false
   end
 end
@@ -110,21 +110,21 @@ _H.escape_text = function(s)
   return vim_fn.substitute(vim_fn.escape(s, [[\^$.*[~]]), "\n", "\\n", "g")
 end
 
-M.cmd.match_toggle = function()
+M.action.match_toggle = function()
   _H.set_enable_matches(not M.is_hl_matches)
 end
 
-M.cmd.clear_matches = function()
+M.action.clear_matches = function()
   -- there is still a copy of matches in {M._matches}, which will be used for :ItToggleMatches
   vim_fn.clearmatches()
 end
 
-M.cmd.list_highlights = function()
+M.action.list_highlights = function()
   vim.cmd(("filter /\v^%s/ highlight"):format(M.group_prefix))
 end
 
 ---@return integer, integer the window id and buffer number
-M.cmd.list_matches = function()
+M.action.list_matches = function()
   local origwinid = vim_api.nvim_get_current_win()
   vim.cmd(("botright split | setlocal winfixheight | resize %s"):format(vim.o.cmdwinheight))
   local listwinid = vim_api.nvim_get_current_win()
@@ -257,7 +257,7 @@ M.cmd.list_matches = function()
   return listwinid, bufnr
 end
 
-M.cmd.match_add_visual = function()
+M.action.match_add_visual = function()
   vim_api.nvim_feedkeys(vim_api.nvim_replace_termcodes("<C-\\><C-n>gv", true, false, true), 'n', false)
 
   local old = vim_fn.getreg("v")
@@ -266,14 +266,14 @@ M.cmd.match_add_visual = function()
   local pattern = _H.escape_text(vim_fn.getreg("v"))
   vim_fn.setreg("v", old)
 
-  local listwin, listbuf = M.cmd.list_matches()
+  local listwin, listbuf = M.action.list_matches()
   local linestart = vim_api.nvim_buf_get_lines(listbuf, 0, 1, true)[1] == "" and 0 or -1
   vim_fn.win_execute(listwin,
     ("call nvim_buf_set_lines(0, %d, -1, 0, [\"_ _ %s\"]) | normal! G02w"):format(linestart, pattern))
 end
 
-M.cmd.match_add = function()
-  local listwin, listbuf = M.cmd.list_matches()
+M.action.match_add = function()
+  local listwin, listbuf = M.action.list_matches()
   local linestart = vim_api.nvim_buf_get_lines(listbuf, 0, 1, true)[1] == "" and 0 or -1
   vim_fn.win_execute(listwin,
     ("call nvim_buf_set_lines(0, %d, -1, 0, [\"_ _ pattern\"]) | exe \"normal! G02wv$\\<c-g>\""):format(linestart))

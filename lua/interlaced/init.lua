@@ -6,7 +6,7 @@ local vim_api = vim.api
 local vim_cmd = vim.cmd
 local vim_uv = vim.uv or vim.loop
 
-local default = require("interlaced.config")
+local config = require("interlaced.config")
 local mt = require("interlaced.match")
 local rpst = require("interlaced.reposition")
 local utils = require("interlaced.utils")
@@ -20,12 +20,7 @@ local M = {
   _orig_mappings = {},
   _is_mappings_on = false,
   _ns_id = nil,
-  -- A list of regex patterns (named entities, numbers, dates, etc) users want to highlight
-  -- :h matchadd()
-  -- Matching is case sensitive and magic, unless case sensitivity
-  -- or magicness are explicitly overridden in {pattern}.  The
-  config = {},
-  cmd = {},
+  action = {},
 }
 
 ---@param lines1 (string|nil)[]
@@ -77,26 +72,26 @@ _H.InterlaceWithL = function(params, is_curbuf_l1)
   vim_fn.writefile(lines, interlaced_path)
   vim_cmd(("edit %s"):format(interlaced_path))
   if not M._is_mappings_on then
-    M.cmd.enable_keybindings()
+    M.action.enable_keybindings()
   end
 end
 
 ---@param params table
 ---@return nil
-M.cmd.interlace_with_l1 = function(params)
+M.action.interlace_with_l1 = function(params)
   _H.InterlaceWithL(params, false)
 end
 
 ---@param params table
 ---@return nil
-M.cmd.interlace_with_l2 = function(params)
+M.action.interlace_with_l2 = function(params)
   _H.InterlaceWithL(params, true)
 end
 
 ---Interlace current buffer with files, placing current buffer at position {n}
 ---@param a table
 ---@return nil
-M.cmd.interlace_as_l = function(a)
+M.action.interlace_as_l = function(a)
   if #a.fargs < 2 then
     logger.error("Usage: ItInterlaceAsL {n} {filepath} [filepath ...]")
     return
@@ -164,41 +159,44 @@ M.cmd.interlace_as_l = function(a)
   vim_fn.writefile(interlaced_lines, interlaced_path)
   vim_cmd(("edit %s"):format(interlaced_path))
 
-  M.config.lang_num = 1 + #a.fargs
+  config.lang_num = 1 + #a.fargs
   -- Enable keybindings if not already enabled
   if not M._is_mappings_on then
-    M.cmd.enable_keybindings()
+    M.action.enable_keybindings()
   end
 end
 
----Enable custom keybindings as defined in M.config.mappings.
-M.cmd.enable_keybindings = function()
-  if type(M.config.enable_keybindings_hook) == "function" then M.config.enable_keybindings_hook() end
+---Enable custom keybindings as defined in config.mappings.
+M.action.enable_keybindings = function()
+  if type(config.enable_keybindings_hook) == "function" then config.enable_keybindings_hook() end
   if M._is_mappings_on then
     logger.warning("Keybindings already on, nothing to do")
     return
   end
-  if M.config.keymaps == nil then return end
-  local mode, lhs, rhs, opts
-  for _, entry in ipairs(M.config.keymaps) do
-    mode, lhs, rhs, opts = unpack(entry)
-    _H.store_orig_mapping(lhs, mode)
-    keyset(mode, lhs, rhs, opts)
+  if config.keymaps == nil then return end
+
+  local action, mode, lhs, rhs
+  for _, t in ipairs(config.keymaps) do
+    mode, lhs, action_name = unpack(t)
+    for _, provider in ipairs({ rpst, mt, M }) do action = provider.action[action_name]; if action ~= nil then break end end
+    if action ~= nil then
+      _H.store_orig_mapping(lhs, mode); keyset(mode, lhs, action, {noremap = true, buffer = true, nowait = true})
+    else logger.error("Unknown action name: " .. rhs) end
   end
   logger.info("Keybindings on")
   M._is_mappings_on = true
 end
 
 ---Disable all keybindings set by EnableKeybindings.
-M.cmd.disable_keybindings = function()
-  if type(M.config.disable_keybindings_hook) == "function" then M.config.disable_keybindings_hook() end
+M.action.disable_keybindings = function()
+  if type(config.disable_keybindings_hook) == "function" then config.disable_keybindings_hook() end
   if not M._is_mappings_on then
     logger.warning("Keybindings already off, nothing to do")
     return
   end
-  if M.config.keymaps ~= nil then
+  if config.keymaps ~= nil then
     local mode, lhs, _
-    for _, entry in ipairs(M.config.keymaps) do
+    for _, entry in ipairs(config.keymaps) do
       mode, lhs, _, _ = unpack(entry)
       pcall(vim_api.nvim_buf_del_keymap, 0, mode, lhs)
     end
@@ -222,9 +220,9 @@ M.ShowChunkNr = function()
   local opts = { right_gravity = true, virt_text_win_col = 0, hl_mode = "combine" }
   local chunkno = 1
   -- nvim_buf_set_extmark uses 0-based, end-exclusive index, thus - 1
-  for lineno = 0, last_lineno - 2 * M.config.lang_num, M.config.lang_num + 1 do
+  for lineno = 0, last_lineno - 2 * config.lang_num, config.lang_num + 1 do
     opts.virt_text = { { string.format("%s ", chunkno), "LineNr" } }
-    vim_api.nvim_buf_set_extmark(0, M._ns_id, lineno + M.config.lang_num, 0, opts)
+    vim_api.nvim_buf_set_extmark(0, M._ns_id, lineno + config.lang_num, 0, opts)
     chunkno = chunkno + 1
   end
 
@@ -240,7 +238,7 @@ M.ClearChunkNr = function()
   M._showing_chunknr = false
 end
 
-M.cmd.toggle_chunk_number = function()
+M.action.toggle_chunk_number = function()
   if M._showing_chunknr == nil then M._showing_chunknr = false end
 
   if M._showing_chunknr then
@@ -250,12 +248,12 @@ M.cmd.toggle_chunk_number = function()
   end
 end
 
-M.cmd.set_separator = function(a)
+M.action.set_separator = function(a)
   -- :ItSetSeparator ?
   -- :ItSetSeparator
   if #a.fargs == 0 or a.args == "?" then
-    for _, l in ipairs(vim_fn.sort(vim.tbl_keys(M.config.language_separator))) do
-      vim.print(("L%s: '%s'"):format(l, M.config.language_separator[l]))
+    for _, l in ipairs(vim_fn.sort(vim.tbl_keys(config.language_separator))) do
+      vim.print(("L%s: '%s'"):format(l, config.language_separator[l]))
     end
     return
   end
@@ -277,36 +275,35 @@ M.cmd.set_separator = function(a)
     sep = "\t"
   end
 
-  M.config.language_separator[tostring(l)] = sep
+  config.language_separator[tostring(l)] = sep
   vim.print(("L%s separator: '%s'"):format(l, sep))
 end
 
 ---@param n nil|string|number
-M.cmd.set_lang_num = function(n)
+M.action.set_lang_num = function(n)
   -- :ItSetLangNum ?
   -- :ItSetLangNum
   if n == nil or n == "?" then
-    vim.print(("Language number: %s"):format(M.config.lang_num))
+    vim.print(("Language number: %s"):format(config.lang_num))
     return
   end
 
   -- :ItSetLangNum {int}
   n = tonumber(n)
-  M.config.lang_num = n
-  rpst.config.lang_num = n
+  config.lang_num = n
 
   -- default separator when language number grows
-  while #M.config.language_separator < n do
-    table.insert(M.config.language_separator, " ")
+  while #config.language_separator < n do
+    table.insert(config.language_separator, " ")
   end
 
   M.ClearChunkNr()
   M.ShowChunkNr()
 
-  vim.print(("Language number: %s"):format(M.config.lang_num))
+  vim.print(("Language number: %s"):format(config.lang_num))
 end
 
-M.cmd.dump = function(path)
+M.action.dump = function(path)
   if path == nil then
     path = vim.fs.joinpath(vim_fn.expand("%:h"), ".interlaced.json")
   end
@@ -314,8 +311,8 @@ M.cmd.dump = function(path)
     curpos = vim_api.nvim_win_get_cursor(0),
     matches = vim_fn.getmatches(),
     config = {
-      language_separator = M.config.language_separator,
-      lang_num = M.config.lang_num
+      language_separator = config.language_separator,
+      lang_num = config.lang_num
     },
   }
 
@@ -323,7 +320,7 @@ M.cmd.dump = function(path)
   logger.info(("dumpped at %s"):format(os.date("%H:%M:%S")))
 end
 
-M.cmd.load = function(a)
+M.action.load = function(a)
   local path
   if a == nil or a.args == nil or #a.args == 0 then
     path = vim.fs.joinpath(vim_fn.expand("%:h"), ".interlaced.json")
@@ -334,7 +331,7 @@ M.cmd.load = function(a)
   local data = _io.read(path)
   if data == nil then return end
 
-  ok, ret = pcall(vim.json.decode, data)
+  local ok, ret = pcall(vim.json.decode, data)
   if not ok then return end
 
   if ret.curpos ~= nil then
@@ -345,8 +342,11 @@ M.cmd.load = function(a)
     mt._matches = utils.match_list2dict(ret.matches)
   end
   if ret.config ~= nil then
-    M.config = vim.tbl_deep_extend("force", M.config, ret.config)
+    local metatable = getmetatable(config)
+    config = vim.tbl_deep_extend("force", config, ret.config)
+    setmetatable(config, metatable)
     rpst.config = vim.tbl_deep_extend("force", rpst.config, ret.config)
+    setmetatable(rpst.config, metatable)
   end
 end
 
@@ -363,10 +363,10 @@ _H.store_orig_mapping = function(key, mode)
   end
 end
 
-M.cmd.reload = function()
+M.action.reload = function()
   local pkg_name = "interlaced"
   require(pkg_name)._showing_chunknr = true
-  require(pkg_name).cmd.toggle_chunk_number()
+  require(pkg_name).action.toggle_chunk_number()
   for k, _ in pairs(package.loaded) do
     if k:sub(1, #pkg_name) == pkg_name then
       package.loaded[k] = nil
@@ -377,21 +377,21 @@ M.cmd.reload = function()
 end
 
 vim_api.nvim_create_user_command("Interlaced", function(a)
-  ---@type string[]
+  local action
   for _, provider in ipairs({ rpst, mt, M }) do
-    cmd = provider.cmd[a.fargs[1]]
-    if cmd ~= nil then break end
+    action = provider.action[a.fargs[1]]
+    if action ~= nil then break end
   end
-  if cmd ~= nil then
+  if action ~= nil then
     a.args = vim.trim(_str.removeprefix(a.args, a.fargs[1]))
     table.remove(a.fargs, 1)
-    return cmd(a)
+    return action(a)
   else
-    logger.error(string.format("%s not found", a.args))
+    logger.error(string.format("subcommand '%s' not found", a.args))
   end
 end, {
   complete = function(_, line)
-    local candidates = vim.iter({ rpst.cmd, mt.cmd, M.cmd }):map(vim.tbl_keys):flatten():totable()
+    local candidates = vim.iter({ rpst.action, mt.action, M.action }):map(vim.tbl_keys):flatten():totable()
     table.sort(candidates)
     local args = vim.split(vim.trim(line), "%s+")
     if vim.tbl_count(args) > 2 then return end
@@ -408,12 +408,5 @@ end, {
   nargs = "*",
   range = "%"
 })
-
-
-------------------------------------- init -------------------------------------
-
-global_opts = vim.g.interlaced or {}
-M.config = vim.tbl_deep_extend("force", default, global_opts)
-rpst.config = M.config
 
 return M

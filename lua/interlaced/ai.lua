@@ -121,7 +121,7 @@ M.get_response = function()
 
       local func_name = choice.message.tool_calls[1]["function"].name
       vim.print(func_name)
-      require "interlaced.reposition".cmd[func_name]()
+      require "interlaced.reposition".action[func_name]()
 
       -- local llama3.2
       -- vim.print(vim.json.decode(stdout_data).message.content.tool_calls[1]["function"].name)
