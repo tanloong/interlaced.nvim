@@ -37,8 +37,6 @@ local default = {
   end,
   ---@type function|nil
   disable_keybindings_hook = nil,
-  ---@type boolean
-  sound_feedback = false,
 }
 
 local config = {}
