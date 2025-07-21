@@ -2,6 +2,8 @@
 
 Text re-positioning for bilingual sentence alignment.
 
+![](img/screen.png)
+
 ## Requirements
 
 + Neovim >= **0.9.0**
