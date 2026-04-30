@@ -316,7 +316,7 @@ M.action.dump = function(path)
     },
   }
 
-  if not _io.write(path, vim.json.encode(data)) then return end
+  if not _io.write(path, vim.json.encode(data, { indent = " " })) then return end
   logger.info(("dumpped at %s"):format(os.date("%H:%M:%S")))
 end
 

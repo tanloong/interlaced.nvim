@@ -6,7 +6,7 @@ Text re-positioning for bilingual sentence alignment.
 
 ## Requirements
 
-+ Neovim >= **0.9.0**
++ Neovim >= **0.12.0**
 
 ## Installation
 
