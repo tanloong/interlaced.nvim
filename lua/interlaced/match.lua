@@ -3,8 +3,6 @@
 local hl = vim.api.nvim_set_hl
 local vim_fn = vim.fn
 local vim_api = vim.api
-local autocmd = vim.api.nvim_create_autocmd
-local augroup = vim.api.nvim_create_augroup
 
 local logger = require("interlaced.logger")
 local utils = require("interlaced.utils")
@@ -133,13 +131,6 @@ M.action.list_matches = function()
   vim_api.nvim_set_current_buf(bufnr)
   vim.bo[bufnr].bufhidden = "wipe"
   vim.bo[bufnr].buftype = 'nowrite'
-
-  autocmd("WinLeave",
-    {
-      buffer = bufnr,
-      group = augroup("interlaced", { clear = true }),
-      command = [[quit]]
-    })
 
   local sort_options = {
     -- id order
