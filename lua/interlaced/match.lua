@@ -133,12 +133,12 @@ M.action.list_matches = function()
   vim.bo[bufnr].buftype = 'nowrite'
 
   local sort_options = {
-    -- id order
-    function(a, b) return a.id < b.id end,
-    -- color order
-    function(a, b) return a.group < b.group end,
     -- pattern order
     function(a, b) return a.pattern < b.pattern end,
+    -- color order
+    function(a, b) return a.group < b.group end,
+    -- id (insertion) order
+    function(a, b) return a.id < b.id end,
   }
   local sort_options_n = #sort_options
   local sort = 0

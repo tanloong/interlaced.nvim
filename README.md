@@ -15,17 +15,17 @@ Text re-positioning for bilingual sentence alignment.
 ```lua
 {
   "tanloong/interlaced.nvim",
-  config = function() require("interlaced") end,
+  config = function() require("interlaced").setup {} end,
   ft = "text",
 }
 ```
 
 ## Configuration
 
-Use `vim.g.interlaced` option table and modifiy the field what you need before the plugin is loaded.
+Configure the plugin with `require("interlaced").setup(opts)`. Options are deep-merged into `vim.g.interlaced`, so a partial table keeps the defaults for the keys it does not mention. Setting `vim.g.interlaced` before the plugin loads works too.
 
 ```lua
-vim.g.interlaced = {
+require("interlaced").setup {
   keymaps = {
     { "n", ",", "push_up"},
     { "n", "<", "push_up_pair"},
@@ -50,9 +50,11 @@ vim.g.interlaced = {
     { "n", "ma", "match_add"},
     { "v", "ma", "match_add_visual"},
   },
-  setup_mappings_now = false,
-  separators = { ["1"] = "", ["2"] = " " },
+  -- sentence separator inserted when pushing/pulling a line up, keyed by the
+  -- 1-based language position
+  language_separator = { ["1"] = "", ["2"] = " " },
   lang_num = 2,
+  -- max re-positioning operations remembered by `:Interlaced undo`; <= 0 means unlimited
   undo_limit = 100,
   enable_keybindings_hook = function()
     -- disable coc to avoid lag on :w
@@ -70,8 +72,20 @@ vim.g.interlaced = {
     require "interlaced".action.load()
     require "interlaced".ShowChunkNr()
   end,
-  sound_feedback = false,
+  ---@type function|nil
+  disable_keybindings_hook = nil,
 }
+```
+
+## Health check
+
+`:checkhealth interlaced` reports the active configuration and whether the Neovim version and options are valid.
+
+## Development
+
+```sh
+make test   # run tests/test_*.lua with a clean Neovim
+make doc    # regenerate doc/interlaced.nvim.txt (requires vimcats)
 ```
 
 ## Commands

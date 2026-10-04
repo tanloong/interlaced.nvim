@@ -4,7 +4,6 @@ local keyset = vim.keymap.set
 local vim_fn = vim.fn
 local vim_api = vim.api
 local vim_cmd = vim.cmd
-local vim_uv = vim.uv or vim.loop
 
 local config = require("interlaced.config")
 local mt = require("interlaced.match")
@@ -17,8 +16,10 @@ local _str = require("interlaced._str")
 local _H = {}
 local M = {
   _H = _H,
-  _orig_mappings = {},
-  _is_mappings_on = false,
+  -- buffer-local state, keyed by buffer number
+  _orig_mappings = {},   -- [bufnr] = list of mappings replaced by enable_keybindings
+  _is_mappings_on = {},  -- [bufnr] = boolean
+  _showing_chunknr = {}, -- [bufnr] = boolean
   _ns_id = nil,
   action = {},
 }
@@ -26,6 +27,22 @@ local M = {
 if vim_fn.has("nvim-0.12") == 0 then
   logger.error("interlaced.nvim requires Neovim >= 0.12.0")
   return M
+end
+
+vim_api.nvim_create_autocmd("BufDelete", {
+  group = vim_api.nvim_create_augroup("interlaced_init", { clear = true }),
+  callback = function(args)
+    M._orig_mappings[args.buf] = nil
+    M._is_mappings_on[args.buf] = nil
+    M._showing_chunknr[args.buf] = nil
+  end,
+})
+
+---Whether the given buffer currently has interlaced keybindings enabled.
+---@param buf integer
+---@return boolean
+_H.mappings_on = function(buf)
+  return M._is_mappings_on[buf] == true
 end
 
 ---@param lines1 (string|nil)[]
@@ -41,17 +58,6 @@ _H.zip = function(lines1, lines2)
   end
   return lines
 end
-
----@return string
-_H.get_timestr = function()
-  local timestr = os.date("%Y-%m-%d.%H-%M-%S")
-  local stamp = tostring(math.floor(vim_uv.hrtime() / 1000000) % 1000)
-  while #stamp < 3 do
-    stamp = "0" .. stamp
-  end
-  return ("%s.%s"):format(timestr, stamp)
-end
-
 
 ---@param params table
 ---@param is_curbuf_l1 boolean
@@ -72,11 +78,10 @@ _H.InterlaceWithL = function(params, is_curbuf_l1)
   lines_this = vim.tbl_filter(function(s) return s:find("%S") ~= nil end, lines_this)
   lines_that = vim.tbl_filter(function(s) return s:find("%S") ~= nil end, lines_that)
   local lines = is_curbuf_l1 and _H.zip(lines_this, lines_that) or _H.zip(lines_that, lines_this)
-  local time = _H.get_timestr()
-  local interlaced_path = ("%s.interlaced.txt"):format(time)
+  local interlaced_path = vim_fn.tempname() .. ".interlaced.txt"
   vim_fn.writefile(lines, interlaced_path)
-  vim_cmd(("edit %s"):format(interlaced_path))
-  if not M._is_mappings_on then
+  vim_cmd({ cmd = "edit", args = { interlaced_path } })
+  if not _H.mappings_on(vim_api.nvim_get_current_buf()) then
     M.action.enable_keybindings()
   end
 end
@@ -159,94 +164,99 @@ M.action.interlace_as_l = function(a)
   end
 
   -- Create a new buffer with the interlaced content
-  local time = _H.get_timestr()
-  local interlaced_path = ("%s.interlaced.txt"):format(time)
+  local interlaced_path = vim_fn.tempname() .. ".interlaced.txt"
   vim_fn.writefile(interlaced_lines, interlaced_path)
-  vim_cmd(("edit %s"):format(interlaced_path))
+  vim_cmd({ cmd = "edit", args = { interlaced_path } })
 
-  config.lang_num = 1 + #a.fargs
+  -- Keep `lang_num` in sync so `:Interlaced deinterlace` and the re-positioning
+  -- actions use the same chunk size as the freshly created buffer.
+  rpst._H.set_lang_num(#a.fargs + 1)
   -- Enable keybindings if not already enabled
-  if not M._is_mappings_on then
+  if not _H.mappings_on(vim_api.nvim_get_current_buf()) then
     M.action.enable_keybindings()
   end
 end
 
 ---Enable custom keybindings as defined in config.mappings.
 M.action.enable_keybindings = function()
+  local buf = vim_api.nvim_get_current_buf()
   if type(config.enable_keybindings_hook) == "function" then config.enable_keybindings_hook() end
-  if M._is_mappings_on then
+  if _H.mappings_on(buf) then
     logger.warning("Keybindings already on, nothing to do")
     return
   end
   if config.keymaps == nil then return end
 
-  local action, mode, lhs, rhs
+  M._orig_mappings[buf] = {}
+  local action, mode, lhs, action_name
   for _, t in ipairs(config.keymaps) do
     mode, lhs, action_name = unpack(t)
     for _, provider in ipairs({ rpst, mt, M }) do action = provider.action[action_name]; if action ~= nil then break end end
     if action ~= nil then
-      _H.store_orig_mapping(lhs, mode); keyset(mode, lhs, action, {noremap = true, buffer = true, nowait = true})
-    else logger.error("Unknown action name: " .. rhs) end
+      _H.store_orig_mapping(buf, lhs, mode); keyset(mode, lhs, action, {noremap = true, buffer = true, nowait = true})
+    else logger.error("Unknown action name: " .. tostring(action_name)) end
   end
   logger.info("Keybindings on")
-  M._is_mappings_on = true
+  M._is_mappings_on[buf] = true
 end
 
 ---Disable all keybindings set by EnableKeybindings.
 M.action.disable_keybindings = function()
+  local buf = vim_api.nvim_get_current_buf()
   if type(config.disable_keybindings_hook) == "function" then config.disable_keybindings_hook() end
-  if not M._is_mappings_on then
+  if not _H.mappings_on(buf) then
     logger.warning("Keybindings already off, nothing to do")
     return
   end
   if config.keymaps ~= nil then
-    local mode, lhs, _
+    local mode, lhs
     for _, entry in ipairs(config.keymaps) do
-      mode, lhs, _, _ = unpack(entry)
-      pcall(vim_api.nvim_buf_del_keymap, 0, mode, lhs)
+      mode, lhs = unpack(entry)
+      pcall(vim_api.nvim_buf_del_keymap, buf, mode, lhs)
     end
   end
-  for _, mapargs in ipairs(M._orig_mappings) do
+  for _, mapargs in ipairs(M._orig_mappings[buf] or {}) do
     if next(mapargs) ~= nil then
       mapargs.buffer = true
       vim_fn.mapset(mapargs)
     end
   end
   logger.info("Keybindings off")
-  M._is_mappings_on = false
-  M._orig_mappings = {}
+  M._is_mappings_on[buf] = false
+  M._orig_mappings[buf] = {}
 end
 
 M.ShowChunkNr = function()
-  if M._showing_chunknr == true then return end
+  local buf = vim_api.nvim_get_current_buf()
+  if M._showing_chunknr[buf] == true then return end
   if M._ns_id == nil then M._ns_id = vim_api.nvim_create_namespace("interlaced") end
 
-  local last_lineno = vim_api.nvim_buf_line_count(0)
+  local last_lineno = vim_api.nvim_buf_line_count(buf)
   local opts = { right_gravity = true, virt_text_win_col = 0, hl_mode = "combine" }
   local chunkno = 1
   -- nvim_buf_set_extmark uses 0-based, end-exclusive index, thus - 1
   for lineno = 0, last_lineno - 2 * config.lang_num, config.lang_num + 1 do
     opts.virt_text = { { string.format("%s ", chunkno), "LineNr" } }
-    vim_api.nvim_buf_set_extmark(0, M._ns_id, lineno + config.lang_num, 0, opts)
+    vim_api.nvim_buf_set_extmark(buf, M._ns_id, lineno + config.lang_num, 0, opts)
     chunkno = chunkno + 1
   end
 
-  M._showing_chunknr = true
+  M._showing_chunknr[buf] = true
 end
 
 M.ClearChunkNr = function()
+  local buf = vim_api.nvim_get_current_buf()
   if M._ns_id == nil then return end
 
-  for _, m in ipairs(vim_api.nvim_buf_get_extmarks(0, M._ns_id, 0, -1, {})) do
-    vim_api.nvim_buf_del_extmark(0, M._ns_id, m[1])
+  for _, m in ipairs(vim_api.nvim_buf_get_extmarks(buf, M._ns_id, 0, -1, {})) do
+    vim_api.nvim_buf_del_extmark(buf, M._ns_id, m[1])
   end
-  M._showing_chunknr = false
+  M._showing_chunknr[buf] = false
 end
 
 M.action.toggle_chunk_number = function()
-  if M._showing_chunknr == nil then M._showing_chunknr = false end
-
-  if M._showing_chunknr then
+  local buf = vim_api.nvim_get_current_buf()
+  if M._showing_chunknr[buf] then
     M.ClearChunkNr()
   else
     M.ShowChunkNr()
@@ -293,14 +303,13 @@ M.action.set_lang_num = function(n)
     return
   end
 
-  -- :ItSetLangNum {int}
+  -- :Interlaced set_lang_num {int}
   n = tonumber(n)
-  config.lang_num = n
-
-  -- default separator when language number grows
-  while #config.language_separator < n do
-    table.insert(config.language_separator, " ")
+  if n == nil or n < 1 then
+    logger.error("Language number must be a positive integer")
+    return
   end
+  rpst._H.set_lang_num(n)
 
   M.ClearChunkNr()
   M.ShowChunkNr()
@@ -350,28 +359,45 @@ M.action.load = function(a)
     local metatable = getmetatable(config)
     config = vim.tbl_deep_extend("force", config, ret.config)
     setmetatable(config, metatable)
-    rpst.config = vim.tbl_deep_extend("force", rpst.config, ret.config)
-    setmetatable(rpst.config, metatable)
+    -- share one config table with `reposition`; keeping separate copies made
+    -- later mutations (e.g. set_lang_num) invisible to each other
+    rpst.config = config
   end
 end
 
+---@param buf integer
 ---@param key string
 ---@param mode string|string[]
 ---@return nil
-_H.store_orig_mapping = function(key, mode)
+_H.store_orig_mapping = function(buf, key, mode)
+  local mappings = M._orig_mappings[buf]
   if type(mode) == "string" then
-    table.insert(M._orig_mappings, vim_fn.maparg(key, mode, false, true))
+    table.insert(mappings, vim_fn.maparg(key, mode, false, true))
   else
     for _, m in ipairs(mode) do
-      table.insert(M._orig_mappings, vim_fn.maparg(key, m, false, true))
+      table.insert(mappings, vim_fn.maparg(key, m, false, true))
     end
   end
 end
 
+---Configure the plugin. Options are deep-merged into `vim.g.interlaced`, so a
+---partial table keeps the defaults for the keys it does not mention.
+---@param opts table|nil
+---@return table
+M.setup = function(opts)
+  if opts ~= nil then
+    local merged = vim.tbl_deep_extend("force", vim.g.interlaced or {}, opts)
+    -- `keymaps` is a list: replace it instead of merging index-by-index
+    if opts.keymaps ~= nil then merged.keymaps = opts.keymaps end
+    vim.g.interlaced = merged
+  end
+  return M
+end
+
 M.action.reload = function()
   local pkg_name = "interlaced"
-  require(pkg_name)._showing_chunknr = true
-  require(pkg_name).action.toggle_chunk_number()
+  -- drop the extmarks added by the old module before unloading it
+  require(pkg_name).ClearChunkNr()
   for k, _ in pairs(package.loaded) do
     if k:sub(1, #pkg_name) == pkg_name then
       package.loaded[k] = nil
@@ -392,7 +418,7 @@ vim_api.nvim_create_user_command("Interlaced", function(a)
     table.remove(a.fargs, 1)
     return action(a)
   else
-    logger.error(string.format("subcommand '%s' not found", a.args))
+    logger.error(string.format("subcommand '%s' not found", tostring(a.fargs[1])))
   end
 end, {
   complete = function(_, line)

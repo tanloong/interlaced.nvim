@@ -13,11 +13,58 @@ local logger = require("interlaced.logger")
 local _H = {}
 local M = {
   _H = _H,
-  _undos = {}, -- store reverse changes of PushUp(Pair), PullBelow(Pair), PushDown(RightPart), LeaveAlone to undo
+  -- per-buffer undo/redo stacks keyed by buffer number, storing the reverse
+  -- changes of PushUp(Pair), PullBelow(Pair), PushDown(RightPart), LeaveAlone
+  _undos = {},
   _redos = {},
   action = {},
   config = require("interlaced.config")
 }
+
+-- Large buffers are re-positioned in windows of this many chunks, redrawing in
+-- between, to keep the UI responsive and bound the per-iteration work.
+_H.SYNC_CHUNK_WINDOW = 200
+
+-- Re-positioning history is buffer-local: it must not be applied to another
+-- buffer, and should be dropped when its buffer is deleted.
+vim_api.nvim_create_autocmd("BufDelete", {
+  group = vim_api.nvim_create_augroup("interlaced_reposition", { clear = true }),
+  callback = function(args)
+    M._undos[args.buf] = nil
+    M._redos[args.buf] = nil
+  end,
+})
+
+---@return table, table # undo and redo stacks of the current buffer
+_H.buffer_history = function()
+  local buf = vim_api.nvim_get_current_buf()
+  M._undos[buf] = M._undos[buf] or {}
+  M._redos[buf] = M._redos[buf] or {}
+  return M._undos[buf], M._redos[buf]
+end
+
+---Any new re-positioning invalidates the redo stack of the current buffer.
+_H.clear_redo = function()
+  local _, redos = _H.buffer_history()
+  for i = #redos, 1, -1 do redos[i] = nil end
+end
+
+---Set the active language number and make sure every language has a separator.
+---`language_separator` uses string keys ("1", "2", ...), so it must not be
+---grown with `table.insert` (which uses array indices that are never read).
+---@param n integer
+_H.set_lang_num = function(n)
+  M.config.lang_num = n
+  local seps = M.config.language_separator
+  if type(seps) ~= "table" then
+    seps = {}
+    M.config.language_separator = seps
+  end
+  for i = 1, n do
+    local key = tostring(i)
+    if seps[key] == nil then seps[key] = " " end
+  end
+end
 
 -------------------------------RE-POSITION START--------------------------------
 
@@ -39,7 +86,8 @@ end
 _H.delete_trailing_empty_lines = function()
   local last_lineno = vim_api.nvim_buf_line_count(0)
   local buf = vim_api.nvim_get_current_buf()
-  while getline(last_lineno):match("^%s*$") do
+  -- nvim always keeps at least one line, so never delete the last one
+  while last_lineno > 1 and getline(last_lineno):match("^%s*$") do
     vim_fn.deletebufline(buf, last_lineno)
     last_lineno = last_lineno - 1
   end
@@ -59,7 +107,7 @@ _H.push_up = function(lnum, here, store)
   local lineno = lnum + (M.config.lang_num + 1)
   local last_lineno = vim_api.nvim_buf_line_count(0)
 
-  local soft_last_lineno = math.min(last_lineno, lineno + 200 * (M.config.lang_num + 1))
+  local soft_last_lineno = math.min(last_lineno, lineno + _H.SYNC_CHUNK_WINDOW * (M.config.lang_num + 1))
 
   while lineno <= soft_last_lineno do
     setline(lineno - (M.config.lang_num + 1), getline(lineno))
@@ -89,7 +137,7 @@ _H.push_up = function(lnum, here, store)
       function() _H.push_up(lnum, here, false) end,
       function() _H.push_down_right_part(lnum - (M.config.lang_num + 1), cnum, false) end,
     }
-    M._redos = {}
+    _H.clear_redo()
   end
 
   -- enable undo history recording
@@ -151,7 +199,7 @@ _H.push_up_pair = function(lnum, here, store)
   lineno = lineno + (M.config.lang_num + 1)
   local last_lineno = vim_api.nvim_buf_line_count(0)
 
-  local soft_last_lineno = math.min(last_lineno, lineno + 200 * (M.config.lang_num + 1))
+  local soft_last_lineno = math.min(last_lineno, lineno + _H.SYNC_CHUNK_WINDOW * (M.config.lang_num + 1))
   while lineno <= soft_last_lineno do
     for offset = 1, M.config.lang_num do
       setline((lineno + offset) - (M.config.lang_num + 1), getline(lineno + offset))
@@ -186,7 +234,7 @@ _H.push_up_pair = function(lnum, here, store)
       function() _H.push_up_pair(lnum, here, false) end,
       function() _H.downward_pair(lnum - (M.config.lang_num + 1), cnums, false) end,
     }
-    M._redos = {}
+    _H.clear_redo()
   end
 
   -- enable undo history recording
@@ -210,7 +258,7 @@ _H.downward_pair = function(lnum, cnums, store)
   local last_chunk_prev_lineno = last_lineno - last_lineno % (M.config.lang_num + 1)
   local next_chunk_prev_lineno = curr_chunk_prev_lineno + (M.config.lang_num + 1)
   local soft_last_chunk_prev_lineno = math.min(last_chunk_prev_lineno,
-    next_chunk_prev_lineno + 200 * (M.config.lang_num + 1))
+    next_chunk_prev_lineno + _H.SYNC_CHUNK_WINDOW * (M.config.lang_num + 1))
   local lineno = soft_last_chunk_prev_lineno - (M.config.lang_num + 1)
   local cache_lines = vim_api.nvim_buf_get_lines(0, soft_last_chunk_prev_lineno,
     soft_last_chunk_prev_lineno + (M.config.lang_num + 1), false)
@@ -250,7 +298,7 @@ _H.downward_pair = function(lnum, cnums, store)
       function() _H.downward_pair(lnum, cnums, false) end,
       function() _H.push_up(lnum + (M.config.lang_num + 1), { lnum + M.config.lang_num + 1, 1 }, false) end,
     }
-    M._redos = {}
+    _H.clear_redo()
   end
 
   -- enable undo history recording
@@ -312,7 +360,7 @@ _H.push_down_right_part = function(lnum, cnum, store)
   local last_lineno = vim_api.nvim_buf_line_count(0)
   for _ = 1, M.config.lang_num + 1 do vim_fn.append(last_lineno, "") end
   local last_counterpart_lineno = last_lineno - (last_lineno - curr_lineno) % (M.config.lang_num + 1)
-  local soft_last_counterpart_lineno = math.min(last_counterpart_lineno, curr_lineno + 200 * (M.config.lang_num + 1))
+  local soft_last_counterpart_lineno = math.min(last_counterpart_lineno, curr_lineno + _H.SYNC_CHUNK_WINDOW * (M.config.lang_num + 1))
   local lineno = soft_last_counterpart_lineno - (M.config.lang_num + 1)
   local cache_line = getline(soft_last_counterpart_lineno)
 
@@ -352,7 +400,7 @@ _H.push_down_right_part = function(lnum, cnum, store)
       function() _H.push_down_right_part(curr_lineno, curr_colno, false) end,
       function() _H.push_up(cntrprt_lineno, { curr_lineno, 1 }, false) end,
     }
-    M._redos = {}
+    _H.clear_redo()
   end
 
   -- enable undo history recording
@@ -403,7 +451,7 @@ _H.push_up_left_part = function(lnum, cnum, store)
       function() _H.push_up_left_part(curr_lineno, curr_colno, false) end,
       function() _H.push_down_right_part_join(cntrprt_lineno, #cntrprt_line + #sep + 1, false) end,
     }
-    M._redos = {}
+    _H.clear_redo()
   end
 
   -- enable undo history recording
@@ -441,7 +489,7 @@ _H.push_down_right_part_join = function(lnum, cnum, store)
       function() _H.push_down_right_part_join(curr_lineno, curr_colno, false) end,
       function() _H.push_up_left_part(cntrprt_lineno, #after_cursor + #sep + 1, false) end,
     }
-    M._redos = {}
+    _H.clear_redo()
   end
 
   -- enable undo history recording
@@ -485,7 +533,7 @@ _H.leave_alone = function(lnum, store)
   local last_chunk_prev_lineno = last_lineno - last_lineno % (M.config.lang_num + 1)
   local curr_chunk_prev_lineno = curr_lineno - languid
   local soft_last_chunk_prev_lineno = math.min(last_chunk_prev_lineno,
-    curr_chunk_prev_lineno + 200 * (M.config.lang_num + 1))
+    curr_chunk_prev_lineno + _H.SYNC_CHUNK_WINDOW * (M.config.lang_num + 1))
   local lineno = soft_last_chunk_prev_lineno - (M.config.lang_num + 1)
   local cache_lines = vim_api.nvim_buf_get_lines(0, soft_last_chunk_prev_lineno,
     soft_last_chunk_prev_lineno + (M.config.lang_num + 1), false)
@@ -526,7 +574,7 @@ _H.leave_alone = function(lnum, store)
       function() _H.leave_alone(curr_lineno, false) end,
       function() _H.put_together(curr_lineno, false) end,
     }
-    M._redos = {}
+    _H.clear_redo()
   end
 
   -- enable undo history recording
@@ -549,7 +597,7 @@ _H.put_together = function(lnum, store)
 
   local lineno = curr_chunk_prev_lineno + (M.config.lang_num + 1)
   local last_lineno = vim_api.nvim_buf_line_count(0)
-  local soft_last_lineno = math.min(last_lineno, lineno + 200 * (M.config.lang_num + 1))
+  local soft_last_lineno = math.min(last_lineno, lineno + _H.SYNC_CHUNK_WINDOW * (M.config.lang_num + 1))
 
   while lineno <= soft_last_lineno do
     for offset = 1, M.config.lang_num do
@@ -583,7 +631,7 @@ _H.put_together = function(lnum, store)
       function() _H.put_together(curr_lineno, false) end,
       function() _H.leave_alone(curr_lineno, false) end,
     }
-    M._redos = {}
+    _H.clear_redo()
   end
 
   -- enable undo history recording
@@ -670,16 +718,18 @@ end
 
 ---@param t function[] the first func is for redo, second undo
 _H.store_undo = function(t)
+  local undos = _H.buffer_history()
   local limit = M.config.undo_limit
-  if limit and limit > 0 and #M._undos >= limit then table.remove(M._undos, 1) end
-  table.insert(M._undos, t)
+  if limit and limit > 0 and #undos >= limit then table.remove(undos, 1) end
+  table.insert(undos, t)
 end
 
 ---@param t function[] the first func is for redo, second undo
 _H.store_redo = function(t)
+  local _, redos = _H.buffer_history()
   -- don't have to limit _redos length because it will have at most the same length of _undos
   -- any reposition during the redoing will clear the _redos
-  table.insert(M._redos, t)
+  table.insert(redos, t)
 end
 
 M.action.undo = function(a)
@@ -692,8 +742,9 @@ M.action.undo = function(a)
     --called from command-line
     c = a.count ~= nil and a.count or 1
   end
+  local undos = _H.buffer_history()
   for _ = 1, c do
-    t = table.remove(M._undos)
+    t = table.remove(undos)
     if t ~= nil then
       t[2]()
       _H.store_redo(t)
@@ -713,8 +764,9 @@ M.action.redo = function(a)
     --called from command-line
     c = a.count ~= nil and a.count or 1
   end
+  local _, redos = _H.buffer_history()
   for _ = 1, c do
-    t = table.remove(M._redos)
+    t = table.remove(redos)
     if t ~= nil then
       t[1]()
       _H.store_undo(t)
@@ -752,9 +804,10 @@ M.action.navigate_up = function(a)
   vim_cmd(("normal! 0%sk"):format(c * (M.config.lang_num + 1)))
 end
 
----:[range]ItDeInterlace [num], works on the whole buffer if range is not provided
+---:[range]Interlaced deinterlace [num], works on the whole buffer if range is not provided
 ---upper- and lower-most empty lines are ignored
----requires the range is paired, [(, L2_1), (L1_2, L2_2), (L1_3, L2_3), ...] will make the buffer chaotic
+---Uses the active `lang_num` when `num` is not provided; run `:Interlaced interlace`
+---first so the two agree on the chunk size.
 ---@param a table
 M.action.deinterlace = function(a)
   -- 0 does not indicate current buffer to deletebufline(), has to use nvim_get_current_buf()
@@ -788,6 +841,8 @@ M.action.deinterlace = function(a)
     table.insert(results, "")
   end
   vim_api.nvim_buf_set_lines(buf, a.line1 - 1, a.line2, true, results)
+  -- the last group is followed by a separator; drop the resulting trailing blanks
+  _H.delete_trailing_empty_lines()
 end
 
 ---@param regex string
@@ -800,7 +855,7 @@ _H.SplitHelper = function(regex, a)
   for _, line in ipairs(lines) do
     vim.list_extend(sents, vim_fn.split(line, regex))
   end
-  vim_api.nvim_buf_set_lines(0, 0, -1, false, sents)
+  vim_api.nvim_buf_set_lines(0, a.line1 - 1, a.line2, false, sents)
 end
 
 ---Insert a newline at end of each Chinese sentence boundaries
@@ -832,7 +887,16 @@ M.action.interlace = function(a)
   -- {end} is exclusive, thus (a.line2 - 1 + 1), thus a.line2
   local lines = vim.tbl_filter(function(s) return s ~= "" end,
     vim_api.nvim_buf_get_lines(0, a.line1 - 1, a.line2, false))
-  local lang_num = #a.fargs == 1 and tonumber(a.fargs[1]) or M.config.lang_num
+  local lang_num = (#a.fargs == 1 and tonumber(a.fargs[1])) or M.config.lang_num
+  if lang_num == nil or lang_num < 1 then
+    logger.error("Language number must be a positive integer")
+    return
+  end
+
+  -- Persist the language number so that a later `:Interlaced deinterlace` (or any
+  -- re-positioning action) uses the same chunk size; otherwise they default to
+  -- the previous `lang_num` and scramble the buffer.
+  _H.set_lang_num(lang_num)
 
   local chunk_count = math.floor(#lines / lang_num)
   local remainder = #lines % lang_num
@@ -845,8 +909,18 @@ M.action.interlace = function(a)
     table.insert(result, "")
   end
 
-  for i = 1, remainder do
-    table.insert(result, lines[chunk_count * lang_num + i])
+  -- Emit the leftover lines as a padded partial chunk instead of appending them
+  -- raw, so that they stay aligned to the chunk stride and can be deinterlaced.
+  if remainder > 0 then
+    local offset = lang_num - remainder
+    for j = 1, lang_num do
+      if j > offset then
+        table.insert(result, lines[chunk_count * lang_num + (j - offset)])
+      else
+        table.insert(result, "")
+      end
+    end
+    table.insert(result, "")
   end
 
   vim_api.nvim_buf_set_lines(0, a.line1 - 1, a.line2, false, result)
