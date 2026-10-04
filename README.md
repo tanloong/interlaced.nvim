@@ -15,17 +15,17 @@ Text re-positioning for bilingual sentence alignment.
 ```lua
 {
   "tanloong/interlaced.nvim",
-  config = function() require("interlaced").setup {} end,
+  config = function() require("interlaced") end,
   ft = "text",
 }
 ```
 
 ## Configuration
 
-Configure the plugin with `require("interlaced").setup(opts)`. Options are deep-merged into `vim.g.interlaced`, so a partial table keeps the defaults for the keys it does not mention. Setting `vim.g.interlaced` before the plugin loads works too.
+Use `vim.g.interlaced` option table and modifiy the field what you need before the plugin is loaded.
 
 ```lua
-require("interlaced").setup {
+vim.g.interlaced = {
   keymaps = {
     { "n", ",", "push_up"},
     { "n", "<", "push_up_pair"},

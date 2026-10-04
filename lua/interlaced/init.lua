@@ -380,20 +380,6 @@ _H.store_orig_mapping = function(buf, key, mode)
   end
 end
 
----Configure the plugin. Options are deep-merged into `vim.g.interlaced`, so a
----partial table keeps the defaults for the keys it does not mention.
----@param opts table|nil
----@return table
-M.setup = function(opts)
-  if opts ~= nil then
-    local merged = vim.tbl_deep_extend("force", vim.g.interlaced or {}, opts)
-    -- `keymaps` is a list: replace it instead of merging index-by-index
-    if opts.keymaps ~= nil then merged.keymaps = opts.keymaps end
-    vim.g.interlaced = merged
-  end
-  return M
-end
-
 M.action.reload = function()
   local pkg_name = "interlaced"
   -- drop the extmarks added by the old module before unloading it
