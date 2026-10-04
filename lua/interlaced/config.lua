@@ -1,6 +1,6 @@
 local default = {
   keymaps = {
-    {"n", "]", "push_up"},
+    {"n", ",", "push_up"},
     {"n", "<", "push_up_pair"},
     {"n", "e", "push_up_left_part"},
     {"n", ".", "pull_below"},
