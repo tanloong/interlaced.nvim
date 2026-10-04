@@ -126,7 +126,6 @@ M.action.pull_below = function(a)
     lineno = lnum
     here = { lineno, 1 }
   end
-  if store == nil then store = true end
 
   _H.push_up(lineno + (M.config.lang_num + 1), here, true)
 end
@@ -671,7 +670,8 @@ end
 
 ---@param t function[] the first func is for redo, second undo
 _H.store_undo = function(t)
-  if #M._undos >= 100 then table.remove(M._undos, 1) end
+  local limit = M.config.undo_limit
+  if limit and limit > 0 and #M._undos >= limit then table.remove(M._undos, 1) end
   table.insert(M._undos, t)
 end
 

@@ -214,7 +214,7 @@ M.action.list_matches = function()
       id = -1
     else
       id = tonumber(id)
-      success, msg = pcall(vim_fn.matchdelete, id, origwinid)
+      local success = pcall(vim_fn.matchdelete, id, origwinid)
       if success then
         for _pat, _id_grp_prio in pairs(M._matches) do
           if _id_grp_prio.id == id then

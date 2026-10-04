@@ -23,6 +23,11 @@ local M = {
   action = {},
 }
 
+if vim_fn.has("nvim-0.12") == 0 then
+  logger.error("interlaced.nvim requires Neovim >= 0.12.0")
+  return M
+end
+
 ---@param lines1 (string|nil)[]
 ---@param lines2 (string|nil)[]
 ---@return string[]

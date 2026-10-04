@@ -9,7 +9,7 @@ M.read = function(path)
     vim.notify(string.format("Failed to open %s", path), vim.log.levels.ERROR)
     return
   end
-  s = f:read("*a")
+  local s = f:read("*a")
   f:close()
   return s
 end

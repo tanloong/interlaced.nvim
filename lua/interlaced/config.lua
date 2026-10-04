@@ -26,6 +26,9 @@ local default = {
   -- sentence separator to insert between when push- or pull-ing up
   language_separator = { ["1"] = "", ["2"] = " " },
   lang_num = 2,
+  -- max number of re-positioning operations remembered by `:Interlaced undo`
+  -- a non-positive value means unlimited
+  undo_limit = 100,
   ---@type function|nil
   enable_keybindings_hook = function()
     vim.opt_local.signcolumn = "no"
