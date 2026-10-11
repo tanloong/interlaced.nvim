@@ -426,4 +426,10 @@ end, {
   range = "%"
 })
 
+-- The DeepSeek bridge client lives in `interlaced/deepseek.lua` and keeps its
+-- own options and state; requiring it here is all it takes to get
+-- `:InterlacedDeepseek` / `:InterlacedDeepseekStatus` whenever this plugin is
+-- loaded. `require` is cached, so repeated `:Interlaced reload` is harmless.
+require("interlaced.deepseek")
+
 return M

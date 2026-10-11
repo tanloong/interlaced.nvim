@@ -1,0 +1,13 @@
+{
+  "name": "interlaced-deepseek-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local bridge that forwards text to a DeepSeek chat page in the browser and returns the answer.",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

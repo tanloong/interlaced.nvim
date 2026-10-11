@@ -81,11 +81,69 @@ vim.g.interlaced = {
 
 `:checkhealth interlaced` reports the active configuration and whether the Neovim version and options are valid.
 
+## Asking DeepSeek about the current window
+
+`:InterlacedDeepseek` sends three things to a DeepSeek chat page in your browser:
+
+1. the local prompt file (`p.md` by default),
+2. the lines currently visible in the window, and
+3. the cursor line with a `|` marking the cursor column,
+
+and shows the answer in a split window (`markdown`, read-only, `q` closes it).
+
+The browser half lives in [`deepseek/`](deepseek/README.md): a dependency-free Node service plus an unpacked extension that types into the page and waits until DeepSeek has stopped streaming. Set it up once:
+
+```sh
+node deepseek/server.mjs   # or let Neovim start it for you
+```
+
+Load `deepseek/extension` through `edge://extensions` → Developer mode → Load unpacked, then keep a `chat.deepseek.com` tab open.
+
+This feature is self-contained in its own file, `lua/interlaced/deepseek.lua`, which `require "interlaced"` loads along with everything else — there is nothing to add to your config. The module also works standalone (`require "interlaced.deepseek"`) if you want the two commands without the rest of the plugin.
+
+| command | description |
+| - | - |
+| **:InterlacedDeepseek [instruction]**  | sends the prompt file, the visible window and the cursor line to DeepSeek and shows the answer in a split window. An argument is appended to the prompt file as an extra instruction. |
+| **:InterlacedDeepseekStatus**  | reports whether the service is running and which DeepSeek page is connected. |
+
+Options live in `vim.g.interlaced.deepseek` (the flat `vim.g.interlaced_deepseek` works too):
+
+| option | default | description |
+| - | - | - |
+| `host` | `"127.0.0.1"` | where the bridge listens |
+| `port` | `8765` | must match the service and `deepseek/extension/content.js` |
+| `prompt_file` | `"p.md"` | sent as the prompt; a relative path is looked up in the current directory and then next to the buffer |
+| `auto_start` | `true` | start `node deepseek/server.mjs` when the service is not running yet |
+| `node` | `"node"` | Node.js executable used by `auto_start` |
+| `server_script` | `<repo>/deepseek/server.mjs` | script run by `auto_start` |
+| `log_file` | `nil` | file to append the auto-started service's output to; `nil` discards it |
+| `timeout_ms` | `300000` | how long DeepSeek may take to answer |
+| `split_command` | `"botright split"` | use `"botright vsplit"` for a window on the right |
+| `split_height_ratio`, `split_width_ratio` | `0.35`, `0.45` | size of the answer split |
+| `close_keymap` | `"q"` | buffer-local key that closes the answer window |
+
+```lua
+vim.g.interlaced = {
+  deepseek = {
+    prompt_file = "~/.config/nvim/interlaced-prompt.md",
+    split_command = "botright vsplit",
+  },
+}
+```
+
+Assign the whole `vim.g.interlaced` table in one go: Neovim hands `vim.g` back as a copy, so `vim.g.interlaced.deepseek.port = 9000` afterwards is silently lost.
+
 ## Development
 
 ```sh
 make test   # run tests/test_*.lua with a clean Neovim
 make doc    # regenerate doc/interlaced.nvim.txt (requires vimcats)
+```
+
+The DeepSeek bridge service needs no dependencies:
+
+```sh
+node deepseek/server.mjs --port 8765
 ```
 
 ## Commands
