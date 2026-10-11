@@ -6,7 +6,8 @@
 ---2. the lines currently visible in the window, and
 ---3. the cursor line with a `|` marking the cursor column,
 ---
----then renders whatever DeepSeek answers in a split window.
+---and stops there: the service types the text into a DeepSeek tab in your
+---browser and presses send, and you read the answer in that tab.
 ---
 ---This module is intentionally standalone: it keeps its own options, talks to
 ---the service with `vim.uv` (no `curl`, no shell), and does not import or modify
@@ -37,16 +38,12 @@ M.config = {
   node = "node",
   ---defaults to `<repo>/deepseek/server.mjs`
   server_script = nil,
-  ---where `auto_start` sends the service's output; nil discards it
+  ---file the auto-started service appends its output to; nil discards it
   log_file = nil,
-  ---how long DeepSeek may take to answer
-  timeout_ms = 300000,
-  ---`botright split` for a window below, `botright vsplit` for one on the right
-  split_command = "botright split",
-  split_height_ratio = 0.35,
-  split_width_ratio = 0.45,
-  ---buffer-local key in the answer window that closes it
-  close_keymap = "q",
+  ---how long the browser page may take to type the text and press send
+  timeout_ms = 15000,
+  ---`:InterlacedDeepseekStatus` gives up after this long
+  status_timeout_ms = 5000,
 }
 
 local uv = vim.uv or vim.loop
@@ -54,7 +51,7 @@ local api = vim.api
 local fn = vim.fn
 local H = M._H
 
----In-flight request, or nil: `{ cancel = fun(), buf = integer }`
+---In-flight send, or nil: `{ cancel = fun() }`
 M.pending = nil
 
 -- ---------------------------------------------------------------------------
@@ -274,20 +271,29 @@ H.start_service = function()
   if fn.executable(node) == 0 then
     return false, ("`%s` is not executable; set vim.g.interlaced.deepseek.node"):format(node)
   end
-  local null_device = fn.has("win32") == 1 and "NUL" or "/dev/null"
+
+  -- The service logs its own output (`--log`), because `jobstart` cannot
+  -- redirect the stdio of a process that is meant to outlive Neovim: it only
+  -- accepts stdio entries it can open, and ignores the rest.
   local log_file = opt("log_file")
-  local out = type(log_file) == "string" and log_file ~= "" and fn.expand(log_file) or null_device
-  local cmd = { node, script, "--port", tostring(opt("port")) }
+  local out = fn.fnamemodify(
+    type(log_file) == "string" and log_file ~= "" and log_file or fn.tempname() .. ".bridge.log",
+    ":p"
+  )
+
+  local null_device = fn.has("win32") == 1 and "NUL" or "/dev/null"
+  local cmd = { node, script, "--port", tostring(opt("port")), "--log", out }
   local started, result = pcall(fn.jobstart, cmd, {
     detach = true,
-    -- A detached child must not inherit the caller's stdout/stderr pipes:
-    -- whatever spawned Neovim would then keep waiting for them to close.
-    stdio = { null_device, out, out },
+    stdio = { null_device, null_device, null_device },
   })
   if not started or result == 0 or result == -1 then
     return false, ("failed to start `%s`"):format(table.concat(cmd, " "))
   end
-  vim.notify(("interlaced.deepseek: started the bridge (%s)"):format(table.concat(cmd, " ")), vim.log.levels.INFO)
+  vim.notify(
+    ("interlaced.deepseek: started the bridge (log: %s)"):format(out),
+    vim.log.levels.INFO
+  )
   return true
 end
 
@@ -328,93 +334,42 @@ H.request = function(method, path, body, cb, opts)
   end
 end
 
--- ---------------------------------------------------------------------------
--- the answer window
--- ---------------------------------------------------------------------------
-
----@return integer buf
-H.open_split = function()
-  local command = opt("split_command")
-  vim.cmd(command)
-
-  local buf = api.nvim_create_buf(false, true)
-  api.nvim_win_set_buf(0, buf)
-
-  vim.bo[buf].buftype = "nofile"
-  vim.bo[buf].bufhidden = "wipe"
-  vim.bo[buf].swapfile = false
-  vim.bo[buf].modifiable = false
-  vim.bo[buf].filetype = "markdown"
-
-  vim.wo.wrap = true
-  vim.wo.number = false
-  vim.wo.relativenumber = false
-  vim.wo.signcolumn = "no"
-  vim.wo.list = false
-  vim.wo.cursorline = false
-
-  local vertical = command:find("vs") ~= nil or command:find("vertical") ~= nil
-  if vertical then
-    api.nvim_win_set_width(0, math.max(20, math.floor(vim.o.columns * opt("split_width_ratio"))))
-  else
-    api.nvim_win_set_height(0, math.max(4, math.floor(vim.o.lines * opt("split_height_ratio"))))
-  end
-
-  pcall(api.nvim_buf_set_name, buf, "deepseek://result")
-
-  local win = api.nvim_get_current_win()
-  vim.keymap.set("n", opt("close_keymap"), function()
-    if api.nvim_win_is_valid(win) then api.nvim_win_close(win, true) end
-  end, { buffer = buf, nowait = true, desc = "Close the DeepSeek answer" })
-
-  return buf
-end
-
----@param buf integer
----@param lines string[]
-H.render = function(buf, lines)
-  if not api.nvim_buf_is_valid(buf) then return end
-  vim.bo[buf].modifiable = true
-  api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.bo[buf].modifiable = false
-end
-
----@param context table
----@return string[]
-H.waiting_lines = function(context)
-  return {
-    "Asking DeepSeek…",
-    "",
-    ("prompt file : %s%s"):format(context.prompt, context.has_prompt and "" or "   (missing)"),
-    ("window      : lines %d-%d"):format(context.first, context.last),
-    ("cursor      : line %d, col %d"):format(context.lnum, context.col),
-    "",
-    ("The answer will replace this text. Press '%s' to close this window."):format(opt("close_keymap")),
-  }
-end
-
----@param text string
----@return string[]
-H.to_lines = function(text)
-  text = (text or ""):gsub("\r\n", "\n")
-  if vim.trim(text) == "" then
-    return { "(DeepSeek returned an empty answer)" }
-  end
-  return vim.split(text, "\n", { plain = true })
+---A request that starts the service on demand and retries until it is up.
+---@param method string
+---@param path string
+---@param body string|nil
+---@param cb fun(err: table|nil, response: table|nil)
+---@param timeout_ms integer|nil per-attempt timeout, defaults to `timeout_ms`
+---@return fun() cancel
+H.call = function(method, path, body, cb, timeout_ms)
+  local auto_start = opt("auto_start")
+  return H.request(method, path, body, cb, {
+    timeout_ms = timeout_ms or opt("timeout_ms"),
+    max_attempts = auto_start and 30 or 1,
+    retry_delay_ms = 300,
+    auto_start = auto_start,
+  })
 end
 
 -- ---------------------------------------------------------------------------
 -- actions
 -- ---------------------------------------------------------------------------
 
----Ask DeepSeek about the current window and show the answer in a split window.
----@param a table|string|nil user-command args, or a plain extra instruction
-M.action.ask = function(a)
-  if M.pending then
-    vim.notify("interlaced.deepseek: still waiting for the previous answer", vim.log.levels.WARN)
-    return
+---@param err table|nil
+---@param response table|nil
+---@return string|nil message error text, or nil when the request succeeded
+H.error_message = function(err, response)
+  if err then return err.message end
+  if response and response.ok ~= true then
+    return tostring(response.error or "unknown error")
   end
+  return nil
+end
 
+---Send the prompt file, the visible window and the cursor line to DeepSeek.
+---The answer is not fetched: read it in the browser tab.
+---@param a table|string|nil user-command args, or a plain extra instruction
+M.action.send = function(a)
   local extra = ""
   if type(a) == "table" then
     extra = tostring(a.args or "")
@@ -422,12 +377,14 @@ M.action.ask = function(a)
     extra = a
   end
 
-  -- capture the window and cursor before the split steals the focus
-  local payload = H.build_payload(extra)
-  local context = H.context()
-  local buf = H.open_split()
-  H.render(buf, H.waiting_lines(context))
+  if M.pending then
+    vim.notify("interlaced.deepseek: the previous context is still being sent", vim.log.levels.WARN)
+    return
+  end
 
+  -- capture the payload before the request goes out, so the text that is sent is
+  -- exactly what the window and cursor looked like when the command ran
+  local payload = H.build_payload(extra)
   local timeout_ms = opt("timeout_ms")
   local body = vim.json.encode({ text = payload, timeout_ms = timeout_ms })
 
@@ -435,65 +392,52 @@ M.action.ask = function(a)
     M.pending = nil
     if err and err.kind == "cancelled" then return end
 
-    if err then
-      H.render(buf, H.to_lines(("DeepSeek bridge error: %s"):format(err.message)))
-      vim.notify("interlaced.deepseek: " .. err.message, vim.log.levels.ERROR)
+    local message = H.error_message(err, response)
+    if message then
+      vim.notify("interlaced.deepseek: " .. message, vim.log.levels.ERROR)
       return
     end
 
-    if response.ok ~= true then
-      local reason = tostring(response.error or "unknown error")
-      H.render(buf, H.to_lines(("DeepSeek error: %s"):format(reason)))
-      vim.notify("interlaced.deepseek: " .. reason, vim.log.levels.ERROR)
-      return
-    end
-
-    H.render(buf, H.to_lines(tostring(response.result or "")))
+    vim.notify(
+      ("interlaced.deepseek: sent %s (%d bytes) — read DeepSeek's answer in the browser tab"):format(
+        response.page and response.page or "the page",
+        response.bytes or #payload
+      ),
+      vim.log.levels.INFO
+    )
   end
 
-  M.pending = {
-    buf = buf,
-    cancel = H.request("POST", "/ask", body, done, {
-      timeout_ms = timeout_ms + 30000,
-      max_attempts = opt("auto_start") and 30 or 1,
-      retry_delay_ms = 300,
-      auto_start = opt("auto_start"),
-    }),
-  }
+  M.pending = { cancel = H.call("POST", "/send", body, done, timeout_ms) }
 end
 
----Show whether the bridge service is up and which DeepSeek page is connected.
+---Report whether the bridge service and a DeepSeek page are reachable.
 M.action.status = function()
-  local host, port = opt("host"), opt("port")
-  return H.request("GET", "/status", nil, function(err, response)
-    if err then
+  H.call("GET", "/status", nil, function(err, response)
+    local message = H.error_message(err, response)
+    if message then
+      vim.notify("interlaced.deepseek: " .. message, vim.log.levels.ERROR)
+      return
+    end
+
+    local pages = type(response.pages) == "table" and response.pages or {}
+    if #pages == 0 then
       vim.notify(
-        ("interlaced.deepseek: no bridge at %s:%d (%s)"):format(host, port, err.message),
+        "interlaced.deepseek: the bridge is up, but no DeepSeek page is connected — load deepseek/extension in the browser and open chat.deepseek.com",
         vim.log.levels.WARN
       )
       return
     end
-    local pages = response.pages or {}
-    if #pages == 0 then
-      vim.notify(
-        ("interlaced.deepseek: bridge is up at %s:%d, but no DeepSeek page is connected"):format(host, port),
-        vim.log.levels.WARN
-      )
-    else
-      vim.notify(
-        ("interlaced.deepseek: bridge up at %s:%d, connected to %s"):format(host, port, pages[1]),
-        vim.log.levels.INFO
-      )
-    end
-  end, { timeout_ms = 5000, max_attempts = 1 })
+    vim.notify(
+      ("interlaced.deepseek: bridge up, %d page(s) connected:\n%s"):format(#pages, table.concat(pages, "\n")),
+      vim.log.levels.INFO
+    )
+  end, opt("status_timeout_ms"))
 end
 
----Abandon the request in flight, if any.
+---Drop the in-flight send and stop retrying.
 M.action.cancel = function()
-  if not M.pending then return end
-  local cancel = M.pending.cancel
+  if M.pending and M.pending.cancel then M.pending.cancel() end
   M.pending = nil
-  if cancel then cancel() end
 end
 
 -- ---------------------------------------------------------------------------
@@ -501,16 +445,16 @@ end
 -- ---------------------------------------------------------------------------
 
 api.nvim_create_user_command("InterlacedDeepseek", function(a)
-  M.action.ask(a)
+  M.action.send(a)
 end, {
   nargs = "*",
-  desc = "Ask DeepSeek about the prompt file and the current window; show the answer in a split",
+  desc = "Send the prompt file, the visible window and the cursor line to DeepSeek",
 })
 
 api.nvim_create_user_command("InterlacedDeepseekStatus", function()
   M.action.status()
 end, {
-  desc = "Report whether the DeepSeek bridge service and the browser page are reachable",
+  desc = "Report whether the DeepSeek bridge service and a browser page are reachable",
 })
 
 return M

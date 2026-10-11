@@ -2,9 +2,10 @@
  * DeepSeek bridge — page side (content script).
  *
  * Runs inside a chat.deepseek.com tab. Keeps a WebSocket open to the local
- * bridge service (deepseek/server.mjs) and, for every `ask` message it gets,
- * it types the text into the composer, presses send, waits until DeepSeek has
- * *finished* streaming the answer, and sends the answer back.
+ * bridge service (deepseek/server.mjs) and, for every `send` message it gets,
+ * types the text into the composer and presses send. That is all it does: the
+ * answer is read by a human in the browser, so nothing here watches the stream
+ * or parses a reply.
  *
  * If DeepSeek ever redesigns the page, only the `CFG.selectors` block below
  * should need updating.
@@ -20,23 +21,18 @@
 
     // --- page selectors (all heuristics; first match wins) ----------------
     selectors: {
-      message: '[class~="ds-message"]',
       // the composer row the send button lives in
       sendContainer: '[class~="bf38813a"]',
       input: ["textarea#chat-input", 'textarea[placeholder]', "textarea", '[contenteditable="true"]'],
     },
 
-    // --- stream-completion detection --------------------------------------
-    pollMs: 2000, // how often the reply is inspected
-    stableMs: 1200, // text unchanged for this long => generation stopped
-    startTimeoutMs: 40000, // give up if no reply node appears within this
-    sendRetryMs: 3000, // wait this long for the click to take effect
+    // how long the composer is given to empty out after a send attempt
+    confirmMs: 3000,
     debug: true,
   };
 
   const log = (...a) => CFG.debug && console.log("[deepseek-bridge]", ...a);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const norm = (s) => (s || "").replace(/\s+/g, " ").trim();
 
   // -----------------------------------------------------------------------
   // page helpers
@@ -50,14 +46,6 @@
       return document.querySelector(sel);
     } catch {
       return null;
-    }
-  };
-
-  const messages = () => {
-    try {
-      return Array.from(document.querySelectorAll(CFG.selectors.message));
-    } catch {
-      return [];
     }
   };
 
@@ -167,135 +155,54 @@
     return null;
   }
 
-  /** The "stop generating" affordance, present only while streaming. */
-  function findStopButton() {
-    for (const el of Array.from(document.querySelectorAll("[class*='ds-icon-button'], button, [role='button']"))) {
-      if (!isVisible(el)) continue;
-      const label = [el.getAttribute("aria-label"), el.getAttribute("title"), el.textContent]
-        .filter(Boolean)
-        .join(" ");
-      if (/停止|中止|中断|\b(stop|abort)\b/i.test(label)) return el;
-    }
-    return null;
-  }
-
   const isDisabled = (el) =>
     !!el &&
     (el.disabled === true ||
       el.getAttribute("aria-disabled") === "true" ||
       /disabled/i.test(el.className || ""));
 
-  async function clickSend(input, beforeNodes) {
-    const button = findSendButton();
-    const grew = () => messages().some((n) => !beforeNodes.includes(n));
+  const composerText = (input) =>
+    input.tagName === "TEXTAREA" || input.tagName === "INPUT"
+      ? input.value || ""
+      : input.textContent || "";
 
+  /**
+   * DeepSeek empties the composer once the message is on its way, which is the
+   * cheapest proof that the send took effect.
+   */
+  async function composerCleared(input) {
+    const deadline = Date.now() + CFG.confirmMs;
+    while (Date.now() < deadline) {
+      await sleep(120);
+      if (composerText(input).trim() === "") return true;
+      if (!document.contains(input)) return true; // composer was swapped out
+    }
+    return false;
+  }
+
+  /** Type `text` into the composer and send it. Resolves with how it was sent. */
+  async function sendText(text) {
+    const input = findInput();
+    if (!input) throw new Error("could not find the DeepSeek message box on the page");
+
+    await typeInto(input, text);
+    await sleep(150);
+
+    const button = findSendButton();
     if (button && !isDisabled(button)) {
       simulateClick(button);
-      const deadline = Date.now() + CFG.sendRetryMs;
-      while (Date.now() < deadline) {
-        await sleep(150);
-        if (grew()) return "button";
-      }
-      log("send button click had no visible effect, trying Enter");
+      if (await composerCleared(input)) return "button";
+      log("the send button click had no effect, trying Enter");
     } else {
       log("no enabled send button found, trying Enter");
     }
 
     pressEnter(input);
-    const deadline = Date.now() + CFG.sendRetryMs;
-    while (Date.now() < deadline) {
-      await sleep(150);
-      if (grew()) return "enter";
-    }
+    if (await composerCleared(input)) return "enter";
+
     throw new Error(
       "could not send the message — the composer or send button selector needs updating",
     );
-  }
-
-  // -----------------------------------------------------------------------
-  // the actual ask: type -> send -> wait for the stream to end -> read it
-  // -----------------------------------------------------------------------
-
-  async function askDeepSeek(text, timeoutMs, onProgress) {
-    const beforeNodes = messages();
-    const beforeTexts = new Set(beforeNodes.map((n) => norm(n.textContent)));
-    const sentNorm = norm(text);
-
-    onProgress("inject");
-    const input = findInput();
-    if (!input) throw new Error("could not find the DeepSeek message box on the page");
-    await typeInto(input, text);
-    await sleep(150);
-
-    onProgress("send");
-    const how = await clickSend(input, beforeNodes);
-    log("sent via", how);
-
-    onProgress("waiting");
-    const startedAt = Date.now();
-    const deadline = startedAt + timeoutMs;
-    const mine = (n) =>
-      !beforeNodes.includes(n) &&
-      norm(n.textContent) !== "" &&
-      norm(n.textContent) !== sentNorm &&
-      !beforeTexts.has(norm(n.textContent));
-
-    // 1. wait for the reply node to appear
-    let reply = null;
-    while (Date.now() < deadline) {
-      reply = messages().filter(mine).pop() || null;
-      if (reply) break;
-      if (Date.now() - startedAt > CFG.startTimeoutMs) {
-        throw new Error(
-          "DeepSeek never started replying (no new message appeared within " +
-            Math.round(CFG.startTimeoutMs / 1000) +
-            "s)",
-        );
-      }
-      await sleep(CFG.pollMs);
-    }
-    if (!reply) throw new Error("timed out before DeepSeek started replying");
-
-    // 2. wait for the reply to stop changing
-    onProgress("streaming");
-    let lastText = norm(reply.textContent);
-    let stableSince = Date.now();
-    let lastReport = 0;
-
-    while (Date.now() < deadline) {
-      const current = messages().filter(mine).pop();
-      if (current && current !== reply) {
-        // DeepSeek started a fresh message node; follow it
-        reply = current;
-        lastText = norm(reply.textContent);
-        stableSince = Date.now();
-      }
-
-      const text2 = norm(reply.textContent);
-      if (text2 !== lastText) {
-        lastText = text2;
-        stableSince = Date.now();
-        if (Date.now() - lastReport > 3000) {
-          lastReport = Date.now();
-          onProgress(`streaming ${lastText.length} chars`);
-        }
-      }
-
-      // `settled` short-circuits first on purpose: the next two checks force
-      // layout, so they only run once the text has already stopped changing.
-      const settled = Date.now() - stableSince >= CFG.stableMs;
-      if (settled && lastText !== "" && findStopButton() === null && !isDisabled(findSendButton())) {
-        log("reply settled after", ((Date.now() - startedAt) / 1000).toFixed(1), "s");
-        return reply.textContent.trim();
-      }
-      await sleep(CFG.pollMs);
-    }
-
-    if (lastText !== "") {
-      log("timed out but keeping the partial reply");
-      return reply.textContent.trim();
-    }
-    throw new Error("timed out waiting for DeepSeek's answer");
   }
 
   // -----------------------------------------------------------------------
@@ -328,6 +235,10 @@
       }
     }, 4000);
 
+    const reply = (message) => {
+      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
+    };
+
     socket.onopen = () => {
       opened = true;
       clearTimeout(failTimer);
@@ -343,30 +254,20 @@
       } catch {
         return;
       }
-      if (msg.type !== "ask") return;
+      if (msg.type !== "send") return;
 
-      askDeepSeek(msg.text, msg.timeout_ms || 300000, (phase) => {
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ type: "progress", id: msg.id, phase }));
-        }
-      })
-        .then((result) => {
-          if (socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({ type: "result", id: msg.id, ok: true, result }));
-          }
+      sendText(msg.text)
+        .then((how) => {
+          log("sent via", how);
+          reply({ type: "sent", id: msg.id });
         })
         .catch((err) => {
-          log("ask failed:", err);
-          if (socket.readyState === WebSocket.OPEN) {
-            socket.send(
-              JSON.stringify({
-                type: "result",
-                id: msg.id,
-                ok: false,
-                error: String((err && err.message) || err),
-              }),
-            );
-          }
+          log("send failed:", err);
+          reply({
+            type: "error",
+            id: msg.id,
+            error: String((err && err.message) || err),
+          });
         });
     };
 

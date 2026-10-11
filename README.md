@@ -89,9 +89,9 @@ vim.g.interlaced = {
 2. the lines currently visible in the window, and
 3. the cursor line with a `|` marking the cursor column,
 
-and shows the answer in a split window (`markdown`, read-only, `q` closes it).
+and that is all it does — the text is typed into the page and sent, and you read DeepSeek's answer in that tab. Nothing is fetched back, so no window is opened and Neovim stays responsive.
 
-The browser half lives in [`deepseek/`](deepseek/README.md): a dependency-free Node service plus an unpacked extension that types into the page and waits until DeepSeek has stopped streaming. Set it up once:
+The browser half lives in [`deepseek/`](deepseek/README.md): a dependency-free Node service plus an unpacked extension that types into the page and presses send. Set it up once:
 
 ```sh
 node deepseek/server.mjs   # or let Neovim start it for you
@@ -103,7 +103,7 @@ This feature is self-contained in its own file, `lua/interlaced/deepseek.lua`, w
 
 | command | description |
 | - | - |
-| **:InterlacedDeepseek [instruction]**  | sends the prompt file, the visible window and the cursor line to DeepSeek and shows the answer in a split window. An argument is appended to the prompt file as an extra instruction. |
+| **:InterlacedDeepseek [instruction]**  | sends the prompt file, the visible window and the cursor line to DeepSeek and presses send in the browser tab. An argument is appended to the prompt file as an extra instruction. |
 | **:InterlacedDeepseekStatus**  | reports whether the service is running and which DeepSeek page is connected. |
 
 Options live in `vim.g.interlaced.deepseek` (the flat `vim.g.interlaced_deepseek` works too):
@@ -116,22 +116,22 @@ Options live in `vim.g.interlaced.deepseek` (the flat `vim.g.interlaced_deepseek
 | `auto_start` | `true` | start `node deepseek/server.mjs` when the service is not running yet |
 | `node` | `"node"` | Node.js executable used by `auto_start` |
 | `server_script` | `<repo>/deepseek/server.mjs` | script run by `auto_start` |
-| `log_file` | `nil` | file to append the auto-started service's output to; `nil` discards it |
-| `timeout_ms` | `300000` | how long DeepSeek may take to answer |
-| `split_command` | `"botright split"` | use `"botright vsplit"` for a window on the right |
-| `split_height_ratio`, `split_width_ratio` | `0.35`, `0.45` | size of the answer split |
-| `close_keymap` | `"q"` | buffer-local key that closes the answer window |
+| `log_file` | `nil` | file the auto-started service writes its log to; `nil` uses a timestamped file in the temp directory (the path is reported in the notification) |
+| `timeout_ms` | `15000` | how long the browser page may take to type the text and press send |
+| `status_timeout_ms` | `5000` | how long `:InterlacedDeepseekStatus` waits for the service |
 
 ```lua
 vim.g.interlaced = {
   deepseek = {
     prompt_file = "~/.config/nvim/interlaced-prompt.md",
-    split_command = "botright vsplit",
+    port = 9000,
   },
 }
 ```
 
 Assign the whole `vim.g.interlaced` table in one go: Neovim hands `vim.g` back as a copy, so `vim.g.interlaced.deepseek.port = 9000` afterwards is silently lost.
+
+With `auto_start`, the service is a detached child of Neovim, so it inherits Neovim's standard output. That is invisible in a terminal, but a launcher that waits for Neovim's output to finish will wait for the service too — start the service yourself (and set `auto_start = false`) if that applies to you.
 
 ## Development
 

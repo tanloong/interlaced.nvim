@@ -4,27 +4,30 @@
  *
  * Two sides:
  *   - HTTP  (this file, port 8765 by default): what Neovim (or curl) talks to.
- *       POST /ask     {"text": "...", "timeout_ms": 300000}
- *         -> {"ok": true,  "result": "...", "elapsed_ms": 1234}
+ *       POST /send    {"text": "...", "timeout_ms": 15000}
+ *         -> {"ok": true,  "delivered": true, "bytes": 1234, "page": "..."}
  *         -> {"ok": false, "error": "..."}
  *       GET  /status  -> {"ok": true, "version": 1, "pages": [...], "busy": false}
  *       GET  /        -> a tiny human-readable status page
  *
  *   - WebSocket (same port, path is irrelevant): one connection per open
  *     deepseek.com tab, created by extension/content.js. The service pushes
- *     {"type":"ask","id":...,"text":...,"timeout_ms":...} down it and the page
- *     answers with {"type":"result","id":...,"ok":true,"result":"..."}.
+ *     {"type":"send","id":...,"text":...} down it; the page types the text into
+ *     the composer, presses send, and answers {"type":"sent","id":...} (or
+ *     {"type":"error","id":...,"error":"..."}). The answer itself is never sent
+ *     back over this service — read it in the browser tab.
  *
  * No dependencies: the WebSocket server below is a minimal RFC 6455
  * implementation, so `node server.mjs` is all you need.
  *
  * Usage:
- *   node server.mjs [--port 8765] [--host 127.0.0.1]
- *   DEEPSEEK_BRIDGE_PORT=9000 node server.mjs
+ *   node server.mjs [--port 8765] [--host 127.0.0.1] [--log bridge.log]
+ *   DEEPSEEK_BRIDGE_PORT=9000 DEEPSEEK_BRIDGE_LOG=bridge.log node server.mjs
  */
 
 import http from "node:http";
 import crypto from "node:crypto";
+import fs from "node:fs";
 
 // ---------------------------------------------------------------------------
 // configuration
@@ -40,12 +43,29 @@ const HOST = argValue("--host", process.env.DEEPSEEK_BRIDGE_HOST || "127.0.0.1")
 const PORT = Number(argValue("--port", process.env.DEEPSEEK_BRIDGE_PORT || 8765));
 const PROTOCOL_VERSION = 1;
 const MAX_BODY_BYTES = 16 * 1024 * 1024;
-const DEFAULT_TIMEOUT_MS = 300_000;
+// how long the browser page gets to type the text and press send
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 const startedAt = Date.now();
+// Where the service appends its own output, if anywhere. Neovim passes this
+// when it starts the service for you: a detached child gets no console, and
+// redirecting its stdio with `jobstart` is not portable.
+const LOG_FILE = argValue("--log", process.env.DEEPSEEK_BRIDGE_LOG || "");
 
-const log = (...args) =>
-  console.log(`[${new Date().toISOString().slice(11, 19)}]`, ...args);
+const stamp = () => `[${new Date().toISOString().slice(11, 19)}]`;
+
+function emit(write, text) {
+  write(text);
+  if (!LOG_FILE) return;
+  try {
+    fs.appendFileSync(LOG_FILE, text + "\n");
+  } catch {
+    /* a log file that cannot be written must never take the bridge down */
+  }
+}
+
+const log = (...args) => emit((t) => console.log(t), `${stamp()} ${args.join(" ")}`);
+const logError = (...args) => emit((t) => console.error(t), `${stamp()} ${args.join(" ")}`);
 
 // ---------------------------------------------------------------------------
 // minimal WebSocket server (RFC 6455, server side)
@@ -222,11 +242,14 @@ const pages = new Set();
 /** @type {Map<string, {resolve:Function,reject:Function,timer:any,page:WSConnection}>} */
 const pending = new Map();
 
-function answer(pendingEntry, ok, value) {
-  if (!pendingEntry) return;
-  clearTimeout(pendingEntry.timer);
-  if (ok) pendingEntry.resolve(value);
-  else pendingEntry.reject(new Error(value));
+/** Settle (and forget) the pending send the page is answering. */
+function settle(id, error) {
+  const entry = pending.get(id);
+  if (!entry) return;
+  pending.delete(id);
+  clearTimeout(entry.timer);
+  if (error) entry.reject(new Error(error));
+  else entry.resolve();
 }
 
 function onPageMessage(page, msg) {
@@ -235,19 +258,13 @@ function onPageMessage(page, msg) {
       page.url = typeof msg.url === "string" ? msg.url : page.url;
       log(`page ready: ${page.url} (${pages.size} connected)`);
       return;
-    case "progress": {
-      const entry = pending.get(msg.id);
-      if (entry) log(`  ${msg.id.slice(0, 8)} … ${msg.phase}`);
+    case "sent":
+      if (pending.has(msg.id)) log(`  ${msg.id.slice(0, 8)} typed and sent`);
+      settle(msg.id);
       return;
-    }
-    case "result": {
-      const entry = pending.get(msg.id);
-      if (!entry) return;
-      pending.delete(msg.id);
-      if (msg.ok) answer(entry, true, String(msg.result ?? ""));
-      else answer(entry, false, String(msg.error || "the page reported an error"));
+    case "error":
+      settle(msg.id, String(msg.error || "the page reported an error"));
       return;
-    }
     default:
       log(`unknown message type from page: ${msg.type}`);
   }
@@ -258,13 +275,12 @@ function onPageClose(page) {
   log(`page disconnected (${pages.size} left)`);
   for (const [id, entry] of [...pending]) {
     if (entry.page !== page) continue;
-    pending.delete(id);
-    answer(entry, false, "the DeepSeek tab was closed or reloaded while waiting");
+    settle(id, "the DeepSeek tab was closed or reloaded while sending");
   }
 }
 
-/** Ask the browser page and resolve with the answer text. */
-function ask(text, timeoutMs) {
+/** Hand `text` to the browser page; resolves once it has pressed send. */
+function deliver(text, timeoutMs) {
   return new Promise((resolve, reject) => {
     const page = [...pages].find((p) => !p.closed);
     if (!page) {
@@ -277,19 +293,21 @@ function ask(text, timeoutMs) {
       return;
     }
     if (pending.size > 0) {
-      reject(new Error(`the page is busy with ${pending.size} other request(s)`));
+      reject(new Error(`the page is still sending ${pending.size} other request(s)`));
       return;
     }
 
     const id = crypto.randomUUID();
     const timer = setTimeout(() => {
       pending.delete(id);
-      reject(new Error(`DeepSeek did not answer within ${Math.round(timeoutMs / 1000)}s`));
+      reject(
+        new Error(`the DeepSeek tab did not confirm the send within ${Math.round(timeoutMs / 1000)}s`),
+      );
     }, timeoutMs);
 
     pending.set(id, { resolve, reject, timer, page });
-    log(`ask ${id.slice(0, 8)} (${text.length} bytes) -> ${page.url}`);
-    page.send({ type: "ask", id, text, timeout_ms: timeoutMs });
+    log(`send ${id.slice(0, 8)} (${text.length} bytes) -> ${page.url}`);
+    page.send({ type: "send", id, text });
   });
 }
 
@@ -339,9 +357,10 @@ const STATUS_PAGE = (port) => `<!doctype html>
 <h1>DeepSeek bridge</h1>
 <p id="status">checking…</p>
 <h2>Usage</h2>
-<pre>curl -s http://127.0.0.1:${port}/ask \\
+<pre>curl -s http://127.0.0.1:${port}/send \\
   -H 'content-type: application/json' \\
   -d '{"text":"Say hi in five words."}'</pre>
+<p>The text is typed into the DeepSeek tab; the answer appears there.</p>
 <p>In Neovim: <code>:InterlacedDeepseek</code></p>
 <script>
   fetch("/status")
@@ -389,7 +408,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === "POST" && (url.pathname === "/ask" || url.pathname === "/")) {
+  if (req.method === "POST" && (url.pathname === "/send" || url.pathname === "/")) {
     let raw;
     try {
       raw = await readBody(req);
@@ -414,16 +433,17 @@ const server = http.createServer(async (req, res) => {
 
     const timeoutMs =
       Number.isFinite(payload.timeout_ms) && payload.timeout_ms > 0
-        ? Math.min(payload.timeout_ms, 3600_000)
+        ? Math.min(payload.timeout_ms, 120_000)
         : DEFAULT_TIMEOUT_MS;
 
     const t = Date.now();
     try {
-      const result = await ask(text, timeoutMs);
-      log(`done in ${((Date.now() - t) / 1000).toFixed(1)}s (${result.length} chars)`);
+      await deliver(text, timeoutMs);
+      log(`delivered in ${((Date.now() - t) / 1000).toFixed(1)}s — read the answer in the tab`);
       sendJSON(res, 200, {
         ok: true,
-        result,
+        delivered: true,
+        bytes: Buffer.byteLength(text, "utf8"),
         elapsed_ms: Date.now() - t,
         page: [...pages][0]?.url ?? null,
       });
@@ -470,18 +490,19 @@ server.on("upgrade", (req, socket) => {
 
 server.listen(PORT, HOST, () => {
   log(`DeepSeek bridge listening on http://${HOST}:${PORT}`);
+  if (LOG_FILE) log(`logging to ${LOG_FILE}`);
   log("  the browser extension connects over WebSocket on the same port");
-  log(`  POST /ask   GET /status   (see http://${HOST}:${PORT}/ for details)`);
+  log(`  POST /send  GET /status   (see http://${HOST}:${PORT}/ for details)`);
 });
 
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
-    console.error(
+    logError(
       `port ${PORT} is already in use — another bridge is probably running. ` +
         `Start this one with a different --port, or stop the other one.`,
     );
   } else {
-    console.error(err);
+    logError(err);
   }
   process.exit(1);
 });

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "DeepSeek bridge for interlaced.nvim",
   "version": "0.1.0",
-  "description": "Feeds text from a local service into the DeepSeek chat page and returns the answer.",
+  "description": "Types text from a local service into the DeepSeek chat page and presses send.",
   "host_permissions": [
     "http://127.0.0.1/*",
     "http://localhost/*",

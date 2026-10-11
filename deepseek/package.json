@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Local bridge that forwards text to a DeepSeek chat page in the browser and returns the answer.",
+  "description": "Local bridge that types text into a DeepSeek chat page in the browser and presses send.",
   "scripts": {
     "start": "node server.mjs"
   },

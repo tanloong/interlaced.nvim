@@ -1,16 +1,18 @@
 #!/usr/bin/env lua
 
 -- Tests for `lua/interlaced/deepseek.lua`: the payload it builds, the HTTP
--- client framing, and the whole ask round-trip. The browser half is replaced by
--- a stub TCP server that speaks the same protocol as `deepseek/server.mjs`.
+-- client framing, and the send round trip. The browser half is replaced by a
+-- stub TCP server that speaks the same protocol as `deepseek/server.mjs`.
+--
+-- There is nothing to test about the answer: the module only pushes context to
+-- DeepSeek and never reads the reply back.
 
 local deepseek = require "interlaced.deepseek"
 local H = deepseek._H
 local uv = vim.uv or vim.loop
 
----@param name string
----@param expected string
----@param got string
+---@param window_expected string
+---@param window_got string
 local function check(name, expected, got)
   assert(expected == got,
     ("%s: expected\n%q\ngot\n%q"):format(name, expected, got))
@@ -29,8 +31,11 @@ end
 -- a stub bridge service
 -- ---------------------------------------------------------------------------
 
-local ASK_REPLY = '{"ok":true,"result":"## answer\\n\\nline two","elapsed_ms":12}'
+local SEND_REPLY = '{"ok":true,"delivered":true,"bytes":4242,"page":"https://chat.deepseek.com/x","elapsed_ms":12}'
 local STATUS_REPLY = '{"ok":true,"version":1,"pages":["https://chat.deepseek.com/x"],"busy":false}'
+local NO_PAGE_REPLY = '{"ok":true,"version":1,"pages":[],"busy":false}'
+
+local replies = { status = STATUS_REPLY }
 local seen_requests = {}
 
 local server = uv.new_tcp()
@@ -49,7 +54,7 @@ server:listen(16, function()
     answered = true
     seen_requests[#seen_requests + 1] = buffer
 
-    local reply = buffer:match("^POST /ask") and ASK_REPLY or STATUS_REPLY
+    local reply = buffer:match("^POST ") and SEND_REPLY or replies.status
     local response = table.concat({
       "HTTP/1.1 200 OK",
       "Content-Type: application/json",
@@ -73,6 +78,27 @@ local probe = uv.new_tcp()
 probe:bind("127.0.0.1", 0)
 local dead_port = local_port(probe)
 probe:close()
+
+-- ---------------------------------------------------------------------------
+-- notifications: the send-only module reports through `vim.notify`
+-- ---------------------------------------------------------------------------
+
+local notices = {}
+vim.notify = function(msg, level)
+  notices[#notices + 1] = { msg = tostring(msg), level = level }
+end
+
+---@return table|nil
+local function last_notice() return notices[#notices] end
+
+---@param from integer index of the first notice to look at
+---@param level integer
+---@return string|nil
+local function notice_at(from, level)
+  local notice = notices[from]
+  if notice == nil or notice.level ~= level then return nil end
+  return notice.msg
+end
 
 -- ---------------------------------------------------------------------------
 -- wiring
@@ -150,46 +176,70 @@ assert(connect_err.kind == "connect", "a dead port should be a connect error, go
 set_options { port = port }
 
 -- ---------------------------------------------------------------------------
--- full round trip: `:InterlacedDeepseek`
+-- :InterlacedDeepseek — send, and nothing else
 -- ---------------------------------------------------------------------------
 
-local win_before = vim.api.nvim_get_current_win()
-deepseek.action.ask("please answer")
+local wins_before = #vim.api.nvim_list_wins()
+deepseek.action.send("please answer")
 
-local answer
-assert(vim.wait(4000, function()
-  local lines = table.concat(vim.api.nvim_buf_get_lines(vim.api.nvim_get_current_buf(), 0, -1, false), "\n")
-  if lines:find("## answer", 1, true) then
-    answer = lines
-    return true
-  end
-  return false
-end), "the answer never reached the split window")
+assert(deepseek.pending ~= nil, "send should leave a request in flight")
+assert(#vim.api.nvim_list_wins() == wins_before, "send must not open a window")
 
-local answer_buf = vim.api.nvim_get_current_buf()
-assert(vim.api.nvim_get_current_win() ~= win_before, "the answer should be shown in a new split")
-assert(answer:find("line two", 1, true), "the whole answer should be rendered")
-assert(vim.bo[answer_buf].buftype == "nofile", "the answer buffer should be scratch")
-assert(vim.bo[answer_buf].filetype == "markdown", "the answer buffer should be markdown")
-assert(vim.bo[answer_buf].modifiable == false, "the answer buffer should not be editable")
-assert(deepseek.pending == nil, "no request should be left in flight")
+local sent_from = #notices + 1
+assert(vim.wait(4000, function() return notice_at(sent_from, vim.log.levels.INFO) ~= nil end),
+  "a successful send should be reported with vim.notify")
+local sent_notice = notice_at(sent_from, vim.log.levels.INFO)
+assert(deepseek.pending == nil, "no request should be left in flight once the send is confirmed")
+assert(sent_notice:find("4242 bytes", 1, true), "the notice should report the size the bridge confirmed")
+assert(sent_notice:find("chat.deepseek.com", 1, true), "the notice should name the page that got the text")
 
 local posted = seen_requests[#seen_requests]
-assert(posted:match("^POST /ask"), "the round trip should POST to /ask")
+assert(posted:match("^POST /send"), "the round trip should POST to /send")
 assert(posted:find("#### fetch_window result:", 1, true), "the POST body should carry the window block")
 assert(posted:find("#### fetch_cursor_line result:", 1, true), "the POST body should carry the cursor block")
 assert(posted:find("# prompt", 1, true), "the POST body should carry the prompt file")
 assert(posted:find("please answer", 1, true), "the POST body should carry the extra instruction")
+assert(posted:find(('"timeout_ms":%d'):format(deepseek.config.timeout_ms)) ~= nil,
+  "the POST body should carry the configured timeout")
 
--- a second request is refused while one is in flight
-local cancelled = false
-deepseek.pending = { cancel = function() cancelled = true end }
-deepseek.action.ask()
-assert(deepseek.pending ~= nil, "the in-flight guard should keep the pending request")
+-- a request in flight blocks a second one instead of racing it
+deepseek.pending = { cancel = function() end }
+local blocked_from = #notices + 1
+deepseek.action.send()
+assert(notice_at(blocked_from, vim.log.levels.WARN) ~= nil, "a second send should warn")
+
+-- ...and `cancel` drops it
 deepseek.action.cancel()
-assert(deepseek.pending == nil and cancelled, "cancel should drop and cancel the request")
+assert(deepseek.pending == nil, "cancel should clear the in-flight send")
 
-vim.api.nvim_win_close(0, true)
+-- a bridge that cannot be reached is reported, not thrown
+set_options { port = dead_port }
+local failure_from = #notices + 1
+deepseek.action.send()
+assert(vim.wait(4000, function() return notice_at(failure_from, vim.log.levels.ERROR) ~= nil end),
+  "a failed send should be reported")
+assert(deepseek.pending == nil, "a failed send should not stay pending")
+set_options { port = port }
+
+-- ---------------------------------------------------------------------------
+-- :InterlacedDeepseekStatus
+-- ---------------------------------------------------------------------------
+
+local ok_from = #notices + 1
+deepseek.action.status()
+assert(vim.wait(4000, function() return notice_at(ok_from, vim.log.levels.INFO) ~= nil end),
+  "status should report the connected page")
+assert(notice_at(ok_from, vim.log.levels.INFO):find("chat.deepseek.com", 1, true),
+  "status should list the connected page url")
+
+replies.status = NO_PAGE_REPLY
+local empty_from = #notices + 1
+deepseek.action.status()
+assert(vim.wait(4000, function() return notice_at(empty_from, vim.log.levels.WARN) ~= nil end),
+  "status should warn when no page is connected")
+assert(notice_at(empty_from, vim.log.levels.WARN):find("no DeepSeek page is connected", 1, true),
+  "the warning should say what is missing")
+
 server:close()
 
 print "all deepseek tests passed"
