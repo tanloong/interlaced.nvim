@@ -9,16 +9,18 @@
 ---and stops there: the service types the text into a DeepSeek tab in your
 ---browser and presses send, and you read the answer in that tab.
 ---
----This module is intentionally standalone: it keeps its own options, talks to
----the service with `vim.uv` (no `curl`, no shell), and does not import or modify
----any other `interlaced` module.
+---This module is intentionally standalone: it keeps its own options and talks
+---to the service with `vim.uv` (no `curl`, no shell). It does not import or
+---modify any other `interlaced` module.
 ---
 ---Options are read from `vim.g.interlaced.deepseek` (or the flat
 ---`vim.g.interlaced_deepseek`), falling back to `M.config` below.
 ---
----Commands (registered on `require`):
----  :InterlacedDeepseek [extra instruction]
----  :InterlacedDeepseekStatus
+---Subcommands (`init.lua` adds this module to the `:Interlaced` dispatcher;
+---there is no default keymap):
+---  :Interlaced deepseek [extra instruction]   send, do not wait for the answer
+---  :Interlaced deepseek_status                report the bridge and page status
+---  :Interlaced deepseek_cancel                drop the in-flight send
 
 local M = {
   _H = {},
@@ -42,7 +44,7 @@ M.config = {
   log_file = nil,
   ---how long the browser page may take to type the text and press send
   timeout_ms = 15000,
-  ---`:InterlacedDeepseekStatus` gives up after this long
+  ---`:Interlaced deepseek_status` gives up after this long
   status_timeout_ms = 5000,
 }
 
@@ -366,10 +368,22 @@ H.error_message = function(err, response)
   return nil
 end
 
+---Make a bridge error actionable. A service built before `/send` existed answers
+---"no route for POST /send", which on its own says nothing about what to do.
+---@param message string
+---@return string
+H.hint_error = function(message)
+  if message:find("no route for", 1, true) then
+    return ("%s — the bridge listening on %s:%d is an older build; stop it and run the command again")
+      :format(message, opt("host"), opt("port"))
+  end
+  return message
+end
+
 ---Send the prompt file, the visible window and the cursor line to DeepSeek.
 ---The answer is not fetched: read it in the browser tab.
 ---@param a table|string|nil user-command args, or a plain extra instruction
-M.action.send = function(a)
+M.action.deepseek = function(a)
   local extra = ""
   if type(a) == "table" then
     extra = tostring(a.args or "")
@@ -394,7 +408,7 @@ M.action.send = function(a)
 
     local message = H.error_message(err, response)
     if message then
-      vim.notify("interlaced.deepseek: " .. message, vim.log.levels.ERROR)
+      vim.notify("interlaced.deepseek: " .. H.hint_error(message), vim.log.levels.ERROR)
       return
     end
 
@@ -411,11 +425,11 @@ M.action.send = function(a)
 end
 
 ---Report whether the bridge service and a DeepSeek page are reachable.
-M.action.status = function()
+M.action.deepseek_status = function()
   H.call("GET", "/status", nil, function(err, response)
     local message = H.error_message(err, response)
     if message then
-      vim.notify("interlaced.deepseek: " .. message, vim.log.levels.ERROR)
+      vim.notify("interlaced.deepseek: " .. H.hint_error(message), vim.log.levels.ERROR)
       return
     end
 
@@ -435,26 +449,20 @@ M.action.status = function()
 end
 
 ---Drop the in-flight send and stop retrying.
-M.action.cancel = function()
+M.action.deepseek_cancel = function()
   if M.pending and M.pending.cancel then M.pending.cancel() end
   M.pending = nil
 end
 
 -- ---------------------------------------------------------------------------
--- commands
+-- subcommands
 -- ---------------------------------------------------------------------------
-
-api.nvim_create_user_command("InterlacedDeepseek", function(a)
-  M.action.send(a)
-end, {
-  nargs = "*",
-  desc = "Send the prompt file, the visible window and the cursor line to DeepSeek",
-})
-
-api.nvim_create_user_command("InterlacedDeepseekStatus", function()
-  M.action.status()
-end, {
-  desc = "Report whether the DeepSeek bridge service and a browser page are reachable",
-})
+-- The actions above are reachable as `:Interlaced deepseek`,
+-- `:Interlaced deepseek_status` and `:Interlaced deepseek_cancel`: `init.lua`
+-- adds this module to the providers it dispatches to. They have no default
+-- keymap; bind them in `vim.g.interlaced.keymaps` if you want one.
+--
+-- Requiring this module has no side effects, so it still works standalone
+-- (`require "interlaced.deepseek".action.deepseek()`).
 
 return M

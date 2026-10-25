@@ -3,7 +3,7 @@
 A local service that types text into a DeepSeek chat page running in your
 browser and presses send. The answer is **not** sent back: it appears in the
 browser tab, where you read it. `interlaced.nvim` uses it to push the window you
-are aligning into DeepSeek (`:InterlacedDeepseek`), but it is useful on its own
+are aligning into DeepSeek (`:Interlaced deepseek`), but it is useful on its own
 from any script that speaks HTTP.
 
 ```
@@ -33,8 +33,8 @@ node deepseek/server.mjs --log bridge.log                    # also append outpu
 ```
 
 Keep it running in the background. Neovim can also start it for you — see
-`:InterlacedDeepseek` below — in which case it appends its output to a file (a
-temp file, or `vim.g.interlaced.deepseek.log_file`).
+`:Interlaced deepseek` in the plugin README — in which case it appends its
+output to a file (a temp file, or `vim.g.interlaced.deepseek.log_file`).
 
 ### 2. Load the extension
 
@@ -45,6 +45,12 @@ temp file, or `vim.g.interlaced.deepseek.log_file`).
 
 The content script connects to the service on load. With a DeepSeek tab open,
 `GET /status` should list it.
+
+When you change `extension/content.js`, press **reload** on the extension and
+reload the DeepSeek tab: a tab keeps the script it was opened with. A tab still
+running the previous version is refused with a message saying so (it announces
+its `protocol` in `hello`, which the service checks), rather than being left to
+time out.
 
 ### 3. Check that the two ends are talking
 
@@ -119,6 +125,8 @@ reports a failure if neither worked.
 | `could not send the message — the composer or send button selector needs updating` | deepseek.com changed its markup; update `selectors` |
 | `the DeepSeek tab did not confirm the send within 15s` | the page is stuck (e.g. a modal is open) — check the tab, or raise `timeout_ms` |
 | `the page is still sending N other request(s)` | a previous `/send` has not been confirmed yet; one page sends one message at a time |
+| `no route for POST /send` | a bridge started before `/send` existed is still on that port — stop it and start `server.mjs` again (Neovim's notice says the same) |
+| `the DeepSeek tab is running an older version of the extension` | the tab still has a content script from before this change; press reload on the extension at `edge://extensions`, then reload the tab (a stale script ignores `send` and never answers) |
 | the text arrived but was not sent | raise `confirmMs` if DeepSeek is slow to accept, or check the console log for what the click hit |
 
 ## Configuration

@@ -13,12 +13,13 @@ local logger = require("interlaced.logger")
 local _io = require("interlaced._io")
 local _str = require("interlaced._str")
 
--- The StartLux client lives in `interlaced/startlux.lua` and keeps its own
--- options and state; requiring it here is all it takes to get
--- `:Interlaced startlux` / `startlux_cancel` / `startlux_prompt` whenever this
--- plugin is loaded. `require` is cached, so repeated `:Interlaced reload` is
--- harmless.
+-- The StartLux and DeepSeek clients keep their own options and state; requiring
+-- them here adds their actions to the `:Interlaced` dispatcher:
+--   startlux / startlux_cancel / startlux_prompt
+--   deepseek / deepseek_status / deepseek_cancel
+-- `require` is cached, so repeated `:Interlaced reload` is harmless.
 local startlux = require("interlaced.startlux")
+local deepseek = require("interlaced.deepseek")
 
 local _H = {}
 local M = {
@@ -198,7 +199,7 @@ M.action.enable_keybindings = function()
   local action, mode, lhs, action_name
   for _, t in ipairs(config.keymaps) do
     mode, lhs, action_name = unpack(t)
-    for _, provider in ipairs({ rpst, mt, M, startlux }) do action = provider.action[action_name]; if action ~= nil then break end end
+    for _, provider in ipairs({ rpst, mt, M, startlux, deepseek }) do action = provider.action[action_name]; if action ~= nil then break end end
     if action ~= nil then
       _H.store_orig_mapping(buf, lhs, mode); keyset(mode, lhs, action, {noremap = true, buffer = true, nowait = true})
     else logger.error("Unknown action name: " .. tostring(action_name)) end
@@ -402,7 +403,7 @@ end
 
 vim_api.nvim_create_user_command("Interlaced", function(a)
   local action
-  for _, provider in ipairs({ rpst, mt, M, startlux }) do
+  for _, provider in ipairs({ rpst, mt, M, startlux, deepseek }) do
     action = provider.action[a.fargs[1]]
     if action ~= nil then break end
   end
@@ -415,7 +416,7 @@ vim_api.nvim_create_user_command("Interlaced", function(a)
   end
 end, {
   complete = function(_, line)
-    local candidates = vim.iter({ rpst.action, mt.action, M.action, startlux.action }):map(vim.tbl_keys):flatten():totable()
+    local candidates = vim.iter({ rpst.action, mt.action, M.action, startlux.action, deepseek.action }):map(vim.tbl_keys):flatten():totable()
     table.sort(candidates)
     local args = vim.split(vim.trim(line), "%s+")
     if vim.tbl_count(args) > 2 then return end

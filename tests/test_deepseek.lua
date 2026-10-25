@@ -35,7 +35,7 @@ local SEND_REPLY = '{"ok":true,"delivered":true,"bytes":4242,"page":"https://cha
 local STATUS_REPLY = '{"ok":true,"version":1,"pages":["https://chat.deepseek.com/x"],"busy":false}'
 local NO_PAGE_REPLY = '{"ok":true,"version":1,"pages":[],"busy":false}'
 
-local replies = { status = STATUS_REPLY }
+local replies = { status = STATUS_REPLY, send = SEND_REPLY }
 local seen_requests = {}
 
 local server = uv.new_tcp()
@@ -54,7 +54,7 @@ server:listen(16, function()
     answered = true
     seen_requests[#seen_requests + 1] = buffer
 
-    local reply = buffer:match("^POST ") and SEND_REPLY or replies.status
+    local reply = buffer:match("^POST ") and replies.send or replies.status
     local response = table.concat({
       "HTTP/1.1 200 OK",
       "Content-Type: application/json",
@@ -104,9 +104,20 @@ end
 -- wiring
 -- ---------------------------------------------------------------------------
 
-assert(vim.fn.exists(":InterlacedDeepseek") == 2, ":InterlacedDeepseek should be registered")
-assert(vim.fn.exists(":InterlacedDeepseekStatus") == 2, ":InterlacedDeepseekStatus should be registered")
+-- the module is reachable through `:Interlaced`, not through commands of its own
+require "interlaced"
+assert(vim.fn.exists(":InterlacedDeepseek") == 0, ":InterlacedDeepseek should not be registered anymore")
+assert(vim.fn.exists(":InterlacedDeepseekStatus") == 0, ":InterlacedDeepseekStatus should not be registered anymore")
+assert(type(deepseek.action.deepseek) == "function", "deepseek action should exist")
+assert(type(deepseek.action.deepseek_status) == "function", "deepseek_status action should exist")
+assert(type(deepseek.action.deepseek_cancel) == "function", "deepseek_cancel action should exist")
 assert(H.repo_root() ~= "", "repo root should resolve")
+
+local completion = vim.fn.getcompletion("Interlaced deep", "cmdline")
+local offered = {}
+for _, name in ipairs(completion) do offered[name] = true end
+assert(offered.deepseek and offered.deepseek_status and offered.deepseek_cancel,
+  ":Interlaced should complete the deepseek subcommands")
 
 -- `vim.g` hands back a copy, so the whole table is re-assigned on every change
 local options = { port = port, auto_start = false }
@@ -176,11 +187,11 @@ assert(connect_err.kind == "connect", "a dead port should be a connect error, go
 set_options { port = port }
 
 -- ---------------------------------------------------------------------------
--- :InterlacedDeepseek — send, and nothing else
+-- :Interlaced deepseek — send, and nothing else
 -- ---------------------------------------------------------------------------
 
 local wins_before = #vim.api.nvim_list_wins()
-deepseek.action.send("please answer")
+vim.cmd "Interlaced deepseek please answer"
 
 assert(deepseek.pending ~= nil, "send should leave a request in flight")
 assert(#vim.api.nvim_list_wins() == wins_before, "send must not open a window")
@@ -205,28 +216,42 @@ assert(posted:find(('"timeout_ms":%d'):format(deepseek.config.timeout_ms)) ~= ni
 -- a request in flight blocks a second one instead of racing it
 deepseek.pending = { cancel = function() end }
 local blocked_from = #notices + 1
-deepseek.action.send()
+deepseek.action.deepseek()
 assert(notice_at(blocked_from, vim.log.levels.WARN) ~= nil, "a second send should warn")
 
--- ...and `cancel` drops it
-deepseek.action.cancel()
+-- ...and `deepseek_cancel` drops it
+deepseek.action.deepseek_cancel()
 assert(deepseek.pending == nil, "cancel should clear the in-flight send")
 
 -- a bridge that cannot be reached is reported, not thrown
 set_options { port = dead_port }
 local failure_from = #notices + 1
-deepseek.action.send()
+deepseek.action.deepseek()
 assert(vim.wait(4000, function() return notice_at(failure_from, vim.log.levels.ERROR) ~= nil end),
   "a failed send should be reported")
 assert(deepseek.pending == nil, "a failed send should not stay pending")
 set_options { port = port }
 
+-- a bridge built before /send existed answers /send with a 404, and the notice
+-- has to say what to do about it instead of just quoting the bridge
+replies.send = '{"ok":false,"error":"no route for POST /send"}'
+local old_bridge_from = #notices + 1
+deepseek.action.deepseek()
+assert(vim.wait(4000, function() return notice_at(old_bridge_from, vim.log.levels.ERROR) ~= nil end),
+  "an older bridge should be reported")
+assert(notice_at(old_bridge_from, vim.log.levels.ERROR):find("older build", 1, true),
+  "the notice should say the bridge is an older build, got: " .. tostring(notice_at(old_bridge_from, vim.log.levels.ERROR)))
+assert(notice_at(old_bridge_from, vim.log.levels.ERROR):find("127.0.0.1:" .. port, 1, true),
+  "the notice should name the port to restart")
+assert(deepseek.pending == nil, "an older bridge should not leave a request pending")
+replies.send = SEND_REPLY
+
 -- ---------------------------------------------------------------------------
--- :InterlacedDeepseekStatus
+-- :Interlaced deepseek_status
 -- ---------------------------------------------------------------------------
 
 local ok_from = #notices + 1
-deepseek.action.status()
+vim.cmd "Interlaced deepseek_status"
 assert(vim.wait(4000, function() return notice_at(ok_from, vim.log.levels.INFO) ~= nil end),
   "status should report the connected page")
 assert(notice_at(ok_from, vim.log.levels.INFO):find("chat.deepseek.com", 1, true),
@@ -234,7 +259,7 @@ assert(notice_at(ok_from, vim.log.levels.INFO):find("chat.deepseek.com", 1, true
 
 replies.status = NO_PAGE_REPLY
 local empty_from = #notices + 1
-deepseek.action.status()
+deepseek.action.deepseek_status()
 assert(vim.wait(4000, function() return notice_at(empty_from, vim.log.levels.WARN) ~= nil end),
   "status should warn when no page is connected")
 assert(notice_at(empty_from, vim.log.levels.WARN):find("no DeepSeek page is connected", 1, true),
