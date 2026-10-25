@@ -20,17 +20,21 @@
 ---one whole-line or pair operation (`push_up`, `pull_below`, `push_down`,
 ---`push_up_pair`, `pull_below_pair`, `leave_alone`) and only suggests it: the
 ---cursor is moved to the target line and the pair flashes, but the buffer is
----not modified.
+---not modified. `startlux_apply` runs the same two requests and executes the
+---suggested operation; when the window has no unpair it scrolls one page
+---forward with `<C-F>` instead.
 ---
 ---Subcommands (`init.lua` adds this module to the `:Interlaced` dispatcher and
 ---`config.keymaps` binds `gn` to `startlux`):
 ---  :Interlaced startlux          ask, jump, flash
 ---  :Interlaced startlux_op       ask, then suggest an operation at the target line
+---  :Interlaced startlux_apply    ask, then apply the suggested operation
 ---  :Interlaced startlux_cancel   drop the in-flight request
 ---  :Interlaced startlux_prompt   show the exact request that would be sent
 ---
----Nothing here touches the rest of the plugin: the module only reads the window
----and nearby buffer lines, and moves the cursor.
+---The locating and suggesting commands only read the window and nearby buffer
+---lines and move the cursor; `startlux_apply` delegates the actual edit to
+---`interlaced.reposition` so `:Interlaced undo` can revert it.
 
 local M = {
   _H = {},
@@ -672,20 +676,78 @@ M.action.startlux = function()
   end)
 end
 
----Ask StartLux for the first unaligned chunk, then ask which operation to apply.
----Only suggests: the cursor is moved to the target line and the pair flashes;
----the buffer is not modified.
-M.action.startlux_op = function()
+---Operations that `startlux_apply` may execute. They are exactly the whole-line
+---and pair choices `startlux_op` offers.
+H.OPERATIONS = {
+  push_up = true,
+  pull_below = true,
+  push_down = true,
+  push_up_pair = true,
+  pull_below_pair = true,
+  leave_alone = true,
+}
+
+---Execute one operation chosen by the model. The cursor is moved with
+---`nvim_win_set_cursor` rather than `k`/`j`, so user mappings cannot interfere.
+---@param answer { op: string, lnum: integer }
+---@return boolean ok
+---@return string|nil error
+H.apply_operation = function(answer)
+  local name = answer and answer.op
+  if not H.OPERATIONS[name] then
+    return false, "unknown operation: " .. tostring(name)
+  end
+
+  local ok, reposition = pcall(require, "interlaced.reposition")
+  if not ok or type(reposition.action) ~= "table" then
+    return false, "interlaced.reposition is not available"
+  end
+  local action = reposition.action[name]
+  if type(action) ~= "function" then
+    return false, "operation is not available: " .. tostring(name)
+  end
+
+  pcall(api.nvim_win_set_cursor, 0, { answer.lnum, 0 })
+  local before = api.nvim_buf_get_changedtick(0)
+  local applied, err = pcall(action, { fargs = { tostring(answer.lnum) } })
+  if not applied then return false, tostring(err) end
+  if api.nvim_buf_get_changedtick(0) == before then
+    return false, ("%s made no change at line %d"):format(name, answer.lnum)
+  end
+  return true
+end
+
+---Scroll the current window one page forward, without using user mappings.
+---@return boolean moved
+H.page_down = function()
+  local before = fn.winsaveview().topline
+  vim.cmd("normal! \6") -- <C-F>
+  return fn.winsaveview().topline ~= before
+end
+
+---Locate the first unaligned chunk, then ask for one whole-line/pair operation.
+---@param apply boolean execute the suggestion instead of only revealing it
+H.run_operation = function(apply)
   if M.pending then
     vim.notify("interlaced.startlux: the previous request is still running", vim.log.levels.WARN)
     return
   end
 
+  local buf = api.nvim_get_current_buf()
+  local tick = api.nvim_buf_get_changedtick(buf)
   local first = math.max(1, fn.line("w0"))
   local last = math.max(1, fn.line("w$"))
   local blocks = H.blocks(first, last)
   if #blocks < 2 then
-    vim.notify("interlaced.startlux: the window has nothing to compare", vim.log.levels.WARN)
+    if apply then
+      local moved = H.page_down()
+      vim.notify(moved
+        and "interlaced.startlux: no unpair in this window; moved one page down"
+        or "interlaced.startlux: no unpair in this window and no next page",
+        vim.log.levels.INFO)
+    else
+      vim.notify("interlaced.startlux: the window has nothing to compare", vim.log.levels.WARN)
+    end
     return
   end
 
@@ -701,15 +763,32 @@ M.action.startlux_op = function()
     vim.notify("interlaced.startlux: " .. tostring(message), vim.log.levels.ERROR)
   end
 
+  ---Abort if the user switched buffers or edited while the request was in flight.
+  local function stale()
+    return not api.nvim_buf_is_valid(buf)
+      or api.nvim_get_current_buf() ~= buf
+      or api.nvim_buf_get_changedtick(buf) ~= tick
+  end
+
   entry.cancel = H.post(body, function(err, text)
     if M.pending ~= entry then return end
     if err then return fail(err) end
+    if stale() then return fail("buffer changed during the request; discarded") end
 
     local lnum, message = H.parse_answer(text or "")
     if not lnum then return fail(message) end
     if lnum == "none" then
       M.pending = nil
-      vim.notify(("interlaced.startlux: no unaligned chunk in this window (%.0f ms)"):format(elapsed_ms()), vim.log.levels.INFO)
+      local elapsed = elapsed_ms()
+      if apply then
+        local moved = H.page_down()
+        vim.notify(moved
+          and ("interlaced.startlux: no unpair in this window; moved one page down (%.0f ms)"):format(elapsed)
+          or ("interlaced.startlux: no unpair in this window and no next page (%.0f ms)"):format(elapsed),
+          vim.log.levels.INFO)
+      else
+        vim.notify(("interlaced.startlux: no unaligned chunk in this window (%.0f ms)"):format(elapsed), vim.log.levels.INFO)
+      end
       return
     end
 
@@ -728,6 +807,10 @@ M.action.startlux_op = function()
         vim.notify("interlaced.startlux: " .. op_err, vim.log.levels.ERROR)
         return
       end
+      if stale() then
+        vim.notify("interlaced.startlux: buffer changed during the request; discarded", vim.log.levels.ERROR)
+        return
+      end
 
       local answer, op_message = H.parse_operation(op_text or "", options)
       if not answer then
@@ -742,6 +825,20 @@ M.action.startlux_op = function()
       end
 
       M.last_op.answer = answer
+      if apply then
+        local applied, apply_err = H.apply_operation(answer)
+        if not applied then
+          H.reveal(block, answer.lnum)
+          vim.notify(("interlaced.startlux: cannot apply %s: %s"):format(answer.op, tostring(apply_err)),
+            vim.log.levels.ERROR)
+          return
+        end
+        vim.notify(("interlaced.startlux: first unpair line %d; applied %s at line %d (%s, confidence %.2f, %.0f ms); :Interlaced undo to revert"):format(
+          block.start, answer.op, answer.lnum, H.line_tag(answer.lnum), answer.confidence or 0, elapsed),
+          vim.log.levels.INFO)
+        return
+      end
+
       local target_block = H.block_around(answer.lnum) or block
       H.reveal(target_block, answer.lnum)
       vim.notify(("interlaced.startlux: first unpair line %d; suggest %s at line %d (%s, confidence %.2f, %.0f ms)"):format(
@@ -750,6 +847,13 @@ M.action.startlux_op = function()
     end)
   end)
 end
+
+---Ask for the first unpair, then suggest an operation at the target line.
+M.action.startlux_op = function() H.run_operation(false) end
+
+---Like `startlux_op`, but execute the suggestion. If the window has no unpair,
+---scroll one page forward with <C-F> instead.
+M.action.startlux_apply = function() H.run_operation(true) end
 
 ---Drop the in-flight request.
 M.action.startlux_cancel = function()
@@ -807,6 +911,7 @@ end
 -- subcommands
 -- ---------------------------------------------------------------------------
 -- The actions above are reachable as `:Interlaced startlux`,
+-- `:Interlaced startlux_op`, `:Interlaced startlux_apply`,
 -- `:Interlaced startlux_cancel` and `:Interlaced startlux_prompt`: `init.lua`
 -- adds this module to the providers it dispatches to, and `config.keymaps`
 -- binds `gn` to `startlux`.

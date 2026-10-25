@@ -165,6 +165,54 @@ do
 end
 
 -- ---------------------------------------------------------------------------
+-- applying an operation
+-- ---------------------------------------------------------------------------
+
+do
+  with_lines {
+    "第一块中文", -- 1
+    "first english", -- 2
+    "", -- 3
+    "第二块中文", -- 4
+    "second english", -- 5
+    "", -- 6
+    "第三块中文", -- 7
+    "third english", -- 8
+  }
+
+  local ok, err = H.apply_operation { op = "push_up_pair", lnum = 4 }
+  check("pair operation applied", true, ok)
+  check("no apply error", nil, err)
+  check("pair joined above", {
+    "第一块中文第二块中文",
+    "first english second english",
+    "",
+    "第三块中文",
+    "third english",
+  }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+
+  ok, err = H.apply_operation { op = "push_up_pair", lnum = 1 }
+  check("no-op operation is rejected", false, ok)
+  check("no-op operation is reported", true, err:find("made no change", 1, true) ~= nil)
+
+  ok, err = H.apply_operation { op = "none", lnum = 1 }
+  check("none is not applied", false, ok)
+  check("none is reported", true, err:find("unknown operation", 1, true) ~= nil)
+
+  check("startlux_apply action exists", "function", type(startlux.action.startlux_apply))
+end
+
+do
+  local lines = {}
+  for i = 1, 200 do lines[i] = "line " .. i end
+  with_lines(lines)
+
+  local before = vim.fn.line("w0")
+  check("page down reports movement", true, H.page_down())
+  check("page down advances the window", true, vim.fn.line("w0") > before)
+end
+
+-- ---------------------------------------------------------------------------
 -- jump target
 -- ---------------------------------------------------------------------------
 

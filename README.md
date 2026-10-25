@@ -88,7 +88,9 @@ Only the first unaligned chunk is asked for on purpose: a boundary error shifts 
 
 `:Interlaced startlux_op` goes one step further: after locating the first unpair it sends a second, focused request containing the previous/current/next chunks and asks for one **whole-line or pair** operation: `push_up`, `pull_below`, `push_down`, `push_up_pair`, `pull_below_pair`, or `leave_alone`. It only suggests the operation — the cursor is moved to the target line and the pair flashes, but the buffer is not modified. This makes it easy to try the suggestion with the normal keymaps and undo it if needed. Partial-line operations (`push_up_left_part` / `push_down_right_part`) are not part of this command yet.
 
-`startlux` makes one request; `startlux_op` makes two. Both go to `POST {base_url}/decisions`, the same endpoint the OpenCode `startlux_decision` tool uses. The key is read from `$BAMBOO_API_KEY`, `$STARTLUX_API_KEY`, the `api_key` option, then `~/.config/opencode/bamboo-api-key`.
+`:Interlaced startlux_apply` runs the same two requests and executes the suggested operation (still whole-line/pair only), so `:Interlaced undo` can revert it. If the window contains no unpair, it scrolls one page forward with `<C-F>` instead, without going through user mappings; run it again to continue from the new page.
+
+`startlux` makes one request; `startlux_op` and `startlux_apply` make two. They all go to `POST {base_url}/decisions`, the same endpoint the OpenCode `startlux_decision` tool uses. The key is read from `$BAMBOO_API_KEY`, `$STARTLUX_API_KEY`, the `api_key` option, then `~/.config/opencode/bamboo-api-key`.
 
 `:Interlaced startlux_prompt` opens a scratch buffer with the exact first-unpair request (the numbered window and the one question), which is handy for inspecting or pasting the prompt elsewhere.
 
@@ -98,10 +100,11 @@ This feature is self-contained in its own file, `lua/interlaced/startlux.lua`, w
 | - | - |
 | **:Interlaced startlux**  | asks StartLux for the first unaligned chunk, jumps to it and flashes it. |
 | **:Interlaced startlux_op**  | locates the first unpair, then suggests a whole-line/pair operation and moves the cursor to its target line. Does not modify the buffer. |
+| **:Interlaced startlux_apply**  | locates the first unpair and applies the suggested whole-line/pair operation. Pages down with `<C-F>` when the window has no unpair. |
 | **:Interlaced startlux_cancel**  | drops the in-flight request. |
 | **:Interlaced startlux_prompt**  | shows the first-unpair request that would be sent, in a scratch buffer. |
 
-`startlux` is bound to `gn` by default; `startlux_op` is not bound. Add it to `vim.g.interlaced.keymaps` if you want a key, e.g. `{ "n", "<leader>o", "startlux_op" }`.
+`startlux` is bound to `gn` by default; `startlux_op` and `startlux_apply` are not bound. Add them to `vim.g.interlaced.keymaps` if you want keys, e.g. `{ "n", "<leader>o", "startlux_op" }` and `{ "n", "<leader>a", "startlux_apply" }`.
 
 Options live in `vim.g.interlaced.startlux` (the flat `vim.g.interlaced_startlux` works too):
 
