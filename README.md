@@ -86,17 +86,22 @@ vim.g.interlaced = {
 
 Only the first unaligned chunk is asked for on purpose: a boundary error shifts every later chunk by one, so once the first one is fixed everything below it lines up again. The request is a single `choice` question over the chunks in the window, so the round trip stays short.
 
-`:Interlaced startlux_prompt` opens a scratch buffer with the exact JSON request (the numbered window and the one question), which is handy for inspecting or pasting the prompt elsewhere.
+`:Interlaced startlux_op` goes one step further: after locating the first unpair it sends a second, focused request containing the previous/current/next chunks and asks for one **whole-line or pair** operation: `push_up`, `pull_below`, `push_down`, `push_up_pair`, `pull_below_pair`, or `leave_alone`. It only suggests the operation — the cursor is moved to the target line and the pair flashes, but the buffer is not modified. This makes it easy to try the suggestion with the normal keymaps and undo it if needed. Partial-line operations (`push_up_left_part` / `push_down_right_part`) are not part of this command yet.
 
-The request goes to `POST {base_url}/decisions`, the same endpoint the OpenCode `startlux_decision` tool uses. The key is read from `$BAMBOO_API_KEY`, `$STARTLUX_API_KEY`, the `api_key` option, then `~/.config/opencode/bamboo-api-key`.
+`startlux` makes one request; `startlux_op` makes two. Both go to `POST {base_url}/decisions`, the same endpoint the OpenCode `startlux_decision` tool uses. The key is read from `$BAMBOO_API_KEY`, `$STARTLUX_API_KEY`, the `api_key` option, then `~/.config/opencode/bamboo-api-key`.
+
+`:Interlaced startlux_prompt` opens a scratch buffer with the exact first-unpair request (the numbered window and the one question), which is handy for inspecting or pasting the prompt elsewhere.
 
 This feature is self-contained in its own file, `lua/interlaced/startlux.lua`, which `require "interlaced"` loads along with everything else — there is nothing to add to your config. The module also works standalone (`require "interlaced.startlux"`).
 
 | command | description |
 | - | - |
 | **:Interlaced startlux**  | asks StartLux for the first unaligned chunk, jumps to it and flashes it. |
+| **:Interlaced startlux_op**  | locates the first unpair, then suggests a whole-line/pair operation and moves the cursor to its target line. Does not modify the buffer. |
 | **:Interlaced startlux_cancel**  | drops the in-flight request. |
-| **:Interlaced startlux_prompt**  | shows the request that would be sent, in a scratch buffer. |
+| **:Interlaced startlux_prompt**  | shows the first-unpair request that would be sent, in a scratch buffer. |
+
+`startlux` is bound to `gn` by default; `startlux_op` is not bound. Add it to `vim.g.interlaced.keymaps` if you want a key, e.g. `{ "n", "<leader>o", "startlux_op" }`.
 
 Options live in `vim.g.interlaced.startlux` (the flat `vim.g.interlaced_startlux` works too):
 

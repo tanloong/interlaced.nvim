@@ -15,7 +15,7 @@ local _str = require("interlaced._str")
 
 -- The StartLux and DeepSeek clients keep their own options and state; requiring
 -- them here adds their actions to the `:Interlaced` dispatcher:
---   startlux / startlux_cancel / startlux_prompt
+--   startlux / startlux_op / startlux_cancel / startlux_prompt
 --   deepseek / deepseek_status / deepseek_cancel
 -- `require` is cached, so repeated `:Interlaced reload` is harmless.
 local startlux = require("interlaced.startlux")

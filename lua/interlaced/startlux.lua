@@ -15,14 +15,22 @@
 ---Options are read from `vim.g.interlaced.startlux` (or the flat
 ---`vim.g.interlaced_startlux`), falling back to `M.config` below.
 ---
+---`:Interlaced startlux_op` reuses that lookup and then sends a second,
+---focused request with the chunk before/at/after the first unpair. It asks for
+---one whole-line or pair operation (`push_up`, `pull_below`, `push_down`,
+---`push_up_pair`, `pull_below_pair`, `leave_alone`) and only suggests it: the
+---cursor is moved to the target line and the pair flashes, but the buffer is
+---not modified.
+---
 ---Subcommands (`init.lua` adds this module to the `:Interlaced` dispatcher and
 ---`config.keymaps` binds `gn` to `startlux`):
 ---  :Interlaced startlux          ask, jump, flash
+---  :Interlaced startlux_op       ask, then suggest an operation at the target line
 ---  :Interlaced startlux_cancel   drop the in-flight request
 ---  :Interlaced startlux_prompt   show the exact request that would be sent
 ---
----Nothing here touches the rest of the plugin: the module only reads the
----window and moves the cursor.
+---Nothing here touches the rest of the plugin: the module only reads the window
+---and nearby buffer lines, and moves the cursor.
 
 local M = {
   _H = {},
@@ -201,6 +209,246 @@ H.build_questions = function(blocks)
   }
 end
 
+-- ---------------------------------------------------------------------------
+-- operation decision (second request)
+-- ---------------------------------------------------------------------------
+
+---@return integer
+H.lang_num = function()
+  local ok, config = pcall(require, "interlaced.config")
+  if not ok or type(config) ~= "table" then return 2 end
+  return math.max(1, tonumber(config.lang_num) or 2)
+end
+
+---1-based language position in a chunk, or nil for the blank separator.
+---@param lnum integer
+---@return integer|nil
+H.line_role = function(lnum)
+  local role = lnum % (H.lang_num() + 1)
+  if role == 0 then return nil end
+  return role
+end
+
+---@param lnum integer
+---@return string
+H.line_tag = function(lnum)
+  local role = H.line_role(lnum)
+  if role == nil then return "空行" end
+  if H.lang_num() == 2 then
+    return role == 1 and "中文" or "英文"
+  end
+  return ("L%d"):format(role)
+end
+
+---The block that contains `lnum`, read from the buffer rather than the window.
+---@param lnum integer
+---@return { start: integer, stop: integer, lines: string[] }|nil
+H.block_around = function(lnum)
+  local last = api.nvim_buf_line_count(0)
+  if lnum < 1 or lnum > last or trim(fn.getline(lnum)) == "" then return nil end
+  local start, stop = lnum, lnum
+  while start > 1 and trim(fn.getline(start - 1)) ~= "" do start = start - 1 end
+  while stop < last and trim(fn.getline(stop + 1)) ~= "" do stop = stop + 1 end
+  return { start = start, stop = stop, lines = fn.getline(start, stop) }
+end
+
+---@param block { start: integer, stop: integer }
+---@return { start: integer, stop: integer, lines: string[] }|nil
+H.block_before = function(block)
+  local lnum = block.start - 1
+  while lnum >= 1 and trim(fn.getline(lnum)) == "" do lnum = lnum - 1 end
+  if lnum < 1 then return nil end
+  return H.block_around(lnum)
+end
+
+---@param block { start: integer, stop: integer }
+---@return { start: integer, stop: integer, lines: string[] }|nil
+H.block_after = function(block)
+  local last = api.nvim_buf_line_count(0)
+  local lnum = block.stop + 1
+  while lnum <= last and trim(fn.getline(lnum)) == "" do lnum = lnum + 1 end
+  if lnum > last then return nil end
+  return H.block_around(lnum)
+end
+
+---@param block { start: integer, stop: integer }
+---@return integer|nil
+H.last_language_line = function(block)
+  for lnum = block.stop, block.start, -1 do
+    if H.line_role(lnum) ~= nil then return lnum end
+  end
+  return nil
+end
+
+---@param lnum integer
+---@param where string
+---@return string
+local function line_ref(lnum, where)
+  return ("行%d（%s，%s）「%s」"):format(
+    lnum, H.line_tag(lnum), where, clip(trim(fn.getline(lnum)), 28))
+end
+
+---Choice criteria for the second request. Every key is `operation:line`.
+---@param cur { start: integer, stop: integer, lines: string[] }
+---@param prev { start: integer, stop: integer, lines: string[] }|nil
+---@param nxt { start: integer, stop: integer, lines: string[] }|nil
+---@return table<string, string>
+H.operation_options = function(cur, prev, nxt)
+  local criteria = {}
+  local function add(key, description) criteria[key] = description end
+
+  local cur_lines = {}
+  for lnum = cur.start, cur.stop do
+    if H.line_role(lnum) ~= nil then cur_lines[#cur_lines + 1] = lnum end
+  end
+
+  if prev then
+    for _, lnum in ipairs(cur_lines) do
+      add("push_up:" .. lnum, ("把%s整行上并到上一块同一语言行的末尾；行%d 留空，下面整体上移。"):format(
+        line_ref(lnum, "当前块"), lnum))
+    end
+    add("push_up_pair:" .. cur.start, ("把当前块（行%d-行%d）的每一行上并到上一块对应行的末尾；整块上移。"):format(
+      cur.start, cur.stop))
+  end
+
+  if nxt then
+    for _, lnum in ipairs(cur_lines) do
+      add("pull_below:" .. lnum, ("把下一块同一语言行整行拉到%s的末尾；下一块该行留空，下面整体上移。"):format(
+        line_ref(lnum, "当前块")))
+      add("push_down:" .. lnum, ("把%s整行下推到下一块同一语言行的开头；行%d 留空，下面整体下移。"):format(
+        line_ref(lnum, "当前块"), lnum))
+    end
+    add("pull_below_pair:" .. cur.start, ("把下一块每一行整行拉到当前块（行%d-行%d）对应行的末尾；下一块上移。"):format(
+      cur.start, cur.stop))
+
+    if prev then
+      local tail = H.last_language_line(prev)
+      if tail then
+        add("push_down:" .. tail, ("把上一块最后一行%s整行下推到下一块同一语言行的开头；这通常是上一对尾部多出的内容。"):format(
+          line_ref(tail, "上一块末行")))
+      end
+    end
+  end
+
+  for _, lnum in ipairs(cur_lines) do
+    add("leave_alone:" .. lnum, ("保留%s，把当前块另一语言行下推并放 '-' 占位，光标进入下一块。"):format(
+      line_ref(lnum, "当前块")))
+  end
+
+  add("none", "不要移动任何行：当前整行/pair 操作都不能安全修复这个边界。")
+  return criteria
+end
+
+---@param cur { start: integer, stop: integer, lines: string[] }
+---@param prev { start: integer, stop: integer, lines: string[] }|nil
+---@param nxt { start: integer, stop: integer, lines: string[] }|nil
+---@return string
+H.build_operation_state = function(cur, prev, nxt)
+  local lines = {
+    "你是双语行对齐检查器。下面是第一个未对齐位置及其上下文，每行以「行号|语言|内容」开头。",
+    "空行分隔 chunk；每个 chunk 是中文行（上，译文）与英文行（下，原文）。",
+    "对齐的本质是分段边界一一对应：一个 pair 对齐 ⟺ 上一 pair 结束时中英文停在对应位置，且本 pair 的中文头对应英文头。",
+    "只看每个 pair 的开头（前几个词），不必通读整行。",
+    "判责优先：若当前块的中文头对应上一块英文行的结尾，病灶在上一块尾部，而不是当前块。",
+    "已确认当前块是第一个未对齐的 chunk。",
+    "",
+  }
+
+  local function add_block(title, block)
+    if not block then return end
+    lines[#lines + 1] = title
+    for lnum = block.start, block.stop do
+      lines[#lines + 1] = ("%d|%s|%s"):format(lnum, H.line_tag(lnum), fn.getline(lnum))
+    end
+    lines[#lines + 1] = ""
+  end
+
+  add_block("上一块：", prev)
+  add_block("当前块（第一个未对齐）：", cur)
+  add_block("下一块：", nxt)
+
+  lines[#lines + 1] = "操作说明："
+  lines[#lines + 1] = "- push_up：目标行整行上并到上一块同一语言行的末尾，目标行留空，下面整体上移。"
+  lines[#lines + 1] = "- pull_below：下一块同一语言行整行拉到目标行末尾，下一块该行留空，下面整体上移。"
+  lines[#lines + 1] = "- push_down：目标行整行下推到下一块同一语言行的开头，目标行留空，下面整体下移。"
+  lines[#lines + 1] = "- push_up_pair / pull_below_pair：整块每一行对应地上并 / 下拉。"
+  lines[#lines + 1] = "- leave_alone：保留目标行，当前块另一语言行下推并放 '-' 占位。"
+  lines[#lines + 1] = ""
+  lines[#lines + 1] = "判断规则："
+  lines[#lines + 1] = "1. 若当前块中文头对应英文下一行开头，中文开头多出内容：优先 push_down 当前块中文行。"
+  lines[#lines + 1] = "2. 若当前块中文头对应英文上一行结尾，上一块英文尾部多出内容：优先 push_down 上一块英文末行。"
+  lines[#lines + 1] = "3. 若整行/整块需要移动，选 push_up、push_down 或对应的 pair 操作。"
+  lines[#lines + 1] = ""
+  lines[#lines + 1] = "任务：选择一个原子操作，使当前块的中英文边界恢复对应；不要移动已对齐的上方内容。"
+  return table.concat(lines, "\n")
+end
+
+---@param cur { start: integer, stop: integer, lines: string[] }
+---@param prev { start: integer, stop: integer, lines: string[] }|nil
+---@param nxt { start: integer, stop: integer, lines: string[] }|nil
+---@return string body
+---@return table<string, string> options
+H.build_operation_payload = function(cur, prev, nxt)
+  local options = H.operation_options(cur, prev, nxt)
+  local body = vim.json.encode({
+    model = opt("model"),
+    state = H.build_operation_state(cur, prev, nxt),
+    questions = {
+      operation = {
+        type = "choice",
+        instructions = "哪一个整行/pair 操作最可能一步修复这个边界？只选一个；若病灶在上一对尾部，选对上一块末行的 push_down。",
+        criteria = options,
+      },
+    },
+    think_mode = opt("think_mode"),
+    allow_none = false,
+  })
+  return body, options
+end
+
+---@param text string
+---@param options table<string, string>
+---@return table|nil answer `{ key, op, lnum, confidence }`, or `{ op = "none" }`
+---@return string|nil error
+---@return table|nil raw
+H.parse_operation = function(text, options)
+  local ok, data = pcall(vim.json.decode, text)
+  if not ok or type(data) ~= "table" then
+    return nil, "StartLux did not answer with JSON: " .. clip(trim(text), 120)
+  end
+  if data.error then
+    local message = type(data.error) == "table" and (data.error.message or data.error.code) or data.error
+    return nil, tostring(message)
+  end
+
+  local answer = type(data.answers) == "table" and data.answers.operation or nil
+  if type(answer) ~= "table" then
+    return nil, "StartLux returned no answers.operation"
+  end
+
+  local choice = answer.choice
+  if choice == nil or choice == vim.NIL then
+    return nil, "StartLux returned no operation choice"
+  end
+  if choice == "none" then
+    return { key = "none", op = "none", confidence = tonumber(answer.confidence) }, nil, data
+  end
+  if not options[choice] then
+    return nil, "unreadable operation: " .. tostring(choice)
+  end
+
+  local op, lnum = tostring(choice):match("^([%a_]+):(%d+)$")
+  if not op or not lnum then
+    return nil, "unreadable operation: " .. tostring(choice)
+  end
+  return {
+    key = choice,
+    op = op,
+    lnum = tonumber(lnum),
+    confidence = tonumber(answer.confidence),
+  }, nil, data
+end
+
 ---The JSON body sent to POST `/v1/decisions`.
 ---@param first integer
 ---@param last integer
@@ -337,15 +585,17 @@ H.block_at = function(lnum, blocks, first, last)
 end
 
 ---@param block { start: integer, stop: integer }
-H.reveal = function(block)
+---@param cursor_lnum integer|nil line to put the cursor on; defaults to the block start
+H.reveal = function(block, cursor_lnum)
   local win = api.nvim_get_current_win()
   local buf = api.nvim_win_get_buf(win)
   local ns = api.nvim_create_namespace("interlaced.startlux")
   local last = api.nvim_buf_line_count(buf)
   local start = math.min(math.max(block.start, 1), last)
   local stop = math.min(math.max(block.stop, start), last)
+  local target = math.min(math.max(cursor_lnum or start, start), stop)
 
-  pcall(api.nvim_win_set_cursor, win, { start, 0 })
+  pcall(api.nvim_win_set_cursor, win, { target, 0 })
   pcall(vim.cmd, "normal! zz")
 
   api.nvim_buf_clear_namespace(buf, ns, 0, -1)
@@ -419,6 +669,85 @@ M.action.startlux = function()
     local block = H.block_at(lnum, blocks, first, last)
     H.reveal(block)
     vim.notify(("interlaced.startlux: first unpair at line %d (%.0f ms)"):format(block.start, elapsed), vim.log.levels.INFO)
+  end)
+end
+
+---Ask StartLux for the first unaligned chunk, then ask which operation to apply.
+---Only suggests: the cursor is moved to the target line and the pair flashes;
+---the buffer is not modified.
+M.action.startlux_op = function()
+  if M.pending then
+    vim.notify("interlaced.startlux: the previous request is still running", vim.log.levels.WARN)
+    return
+  end
+
+  local first = math.max(1, fn.line("w0"))
+  local last = math.max(1, fn.line("w$"))
+  local blocks = H.blocks(first, last)
+  if #blocks < 2 then
+    vim.notify("interlaced.startlux: the window has nothing to compare", vim.log.levels.WARN)
+    return
+  end
+
+  local body = H.build_payload(first, last)
+  local started = uv.hrtime()
+  local function elapsed_ms() return (uv.hrtime() - started) / 1e6 end
+  local entry = { cancel = function() end }
+  M.pending = entry
+  M.last_op = nil
+
+  local function fail(message)
+    if M.pending == entry then M.pending = nil end
+    vim.notify("interlaced.startlux: " .. tostring(message), vim.log.levels.ERROR)
+  end
+
+  entry.cancel = H.post(body, function(err, text)
+    if M.pending ~= entry then return end
+    if err then return fail(err) end
+
+    local lnum, message = H.parse_answer(text or "")
+    if not lnum then return fail(message) end
+    if lnum == "none" then
+      M.pending = nil
+      vim.notify(("interlaced.startlux: no unaligned chunk in this window (%.0f ms)"):format(elapsed_ms()), vim.log.levels.INFO)
+      return
+    end
+
+    local block = H.block_at(lnum, blocks, first, last)
+    local prev = H.block_before(block)
+    local nxt = H.block_after(block)
+    local op_body, options = H.build_operation_payload(block, prev, nxt)
+    M.last_op = { body = op_body, options = options, block = block, first = first, last = last }
+
+    entry.cancel = H.post(op_body, function(op_err, op_text)
+      if M.pending ~= entry then return end
+      M.pending = nil
+      local elapsed = elapsed_ms()
+
+      if op_err then
+        vim.notify("interlaced.startlux: " .. op_err, vim.log.levels.ERROR)
+        return
+      end
+
+      local answer, op_message = H.parse_operation(op_text or "", options)
+      if not answer then
+        vim.notify("interlaced.startlux: " .. tostring(op_message), vim.log.levels.ERROR)
+        return
+      end
+
+      if answer.op == "none" then
+        H.reveal(block)
+        vim.notify(("interlaced.startlux: no safe whole-line operation suggested (%.0f ms)"):format(elapsed), vim.log.levels.INFO)
+        return
+      end
+
+      M.last_op.answer = answer
+      local target_block = H.block_around(answer.lnum) or block
+      H.reveal(target_block, answer.lnum)
+      vim.notify(("interlaced.startlux: first unpair line %d; suggest %s at line %d (%s, confidence %.2f, %.0f ms)"):format(
+        block.start, answer.op, answer.lnum, H.line_tag(answer.lnum), answer.confidence or 0, elapsed),
+        vim.log.levels.INFO)
+    end)
   end)
 end
 

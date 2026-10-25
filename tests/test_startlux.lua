@@ -1,8 +1,9 @@
 #!/usr/bin/env lua
 
 -- Tests for `lua/interlaced/startlux.lua`: the window -> chunks scan, the
--- request it builds for POST /v1/decisions, and the answer it accepts. The
--- HTTP call itself is not exercised: it needs a key and a network round trip.
+-- first-unpair and operation requests it builds for POST /v1/decisions, and the
+-- answers it accepts. The HTTP call itself is not exercised: it needs a key and
+-- a network round trip.
 
 local startlux = require "interlaced.startlux"
 local H = startlux._H
@@ -91,6 +92,76 @@ do
   lnum, err = H.parse_answer "<html>gateway</html>"
   check("non-json", nil, lnum)
   check("non-json is reported", true, err:find("JSON", 1, true) ~= nil)
+end
+
+-- ---------------------------------------------------------------------------
+-- operation decision
+-- ---------------------------------------------------------------------------
+
+do
+  with_lines {
+    "第一块中文", -- 1
+    "first english", -- 2
+    "", -- 3
+    "第二块中文", -- 4
+    "second english", -- 5
+    "", -- 6
+    "第三块中文", -- 7
+    "third english", -- 8
+    "", -- 9
+    "第四块中文", -- 10
+    "fourth english", -- 11
+  }
+
+  local blocks = H.blocks(1, 11)
+  local cur, prev, nxt = blocks[3], blocks[2], blocks[4]
+  check("line 7 is Chinese", "中文", H.line_tag(7))
+  check("line 8 is English", "英文", H.line_tag(8))
+  check("line 9 is a separator", nil, H.line_role(9))
+  check("previous block", { start = 4, stop = 5 }, { start = H.block_before(cur).start, stop = H.block_before(cur).stop })
+  check("next block", { start = 10, stop = 11 }, { start = H.block_after(cur).start, stop = H.block_after(cur).stop })
+
+  local options = H.operation_options(cur, prev, nxt)
+  for _, key in ipairs {
+    "push_up:7", "push_up:8", "push_up_pair:7",
+    "pull_below:7", "pull_below:8", "pull_below_pair:7",
+    "push_down:7", "push_down:8", "push_down:5",
+    "leave_alone:7", "leave_alone:8", "none",
+  } do
+    check("operation option " .. key, true, options[key] ~= nil)
+  end
+  check("the first chunk cannot push up", nil, options["push_up:1"])
+
+  local body, built = H.build_operation_payload(cur, prev, nxt)
+  local data = vim.json.decode(body)
+  check("one operation question", { "operation" }, vim.tbl_keys(data.questions))
+  check("operation is a choice", "choice", data.questions.operation.type)
+  check("same criteria in payload", options, data.questions.operation.criteria)
+  check("state labels the current block", true, data.state:find("7|中文|第三块中文", 1, true) ~= nil)
+  check("state includes the previous block", true, data.state:find("5|英文|second english", 1, true) ~= nil)
+  check("state includes the next block", true, data.state:find("10|中文|第四块中文", 1, true) ~= nil)
+  check("criteria description names the target line", true,
+    built["push_down:5"]:find("行5", 1, true) ~= nil)
+
+  local answer, err = H.parse_operation(
+    '{"answers":{"operation":{"choice":"push_down:5","confidence":0.81}}}', options)
+  check("operation answer", "push_down", answer.op)
+  check("operation target line", 5, answer.lnum)
+  check("operation confidence", 0.81, answer.confidence)
+  check("no operation error", nil, err)
+
+  answer = H.parse_operation('{"answers":{"operation":{"choice":"none"}}}', options)
+  check("none operation", "none", answer.op)
+
+  answer, err = H.parse_operation('{"answers":{"operation":{"choice":"push_down:999"}}}', options)
+  check("unknown operation is rejected", nil, answer)
+  check("unknown operation is reported", true, err:find("unreadable", 1, true) ~= nil)
+
+  answer, err = H.parse_operation('{"answers":{"operation":{"choice":null}}}', options)
+  check("null operation is rejected", nil, answer)
+  check("null operation is reported", true, err:find("no operation", 1, true) ~= nil)
+
+  check("startlux_op action exists", "function", type(startlux.action.startlux_op))
 end
 
 -- ---------------------------------------------------------------------------
