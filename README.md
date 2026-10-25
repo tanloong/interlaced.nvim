@@ -186,6 +186,17 @@ Assign the whole `vim.g.interlaced` table in one go: Neovim hands `vim.g` back a
 With `auto_start`, the service is a detached child of Neovim, so it inherits Neovim's standard output. That is invisible in a terminal, but a launcher that waits for Neovim's output to finish will wait for the service too — start the service yourself (and set `auto_start = false`) if that applies to you.
 
 
+## Chunk numbers and counted navigation
+
+`:Interlaced toggle_chunk_number` (or `require "interlaced".ShowChunkNr()` in your config) writes the chunk number onto the blank separator after each chunk. The labels follow `relativenumber`:
+
+- `relativenumber` on: the chunk containing the cursor shows its absolute number, and every other chunk visible in the window shows its distance from the cursor chunk, like Vim's relative line numbers. A chunk labelled `2` is two chunks away, so `2J` or `2K` jumps to it.
+- `relativenumber` off: every chunk shows its absolute number.
+
+The labels are refreshed on cursor movement, scrolling, window resizing, and `:set relative` / `:set norelative`.
+
+`navigate_down`, `navigate_up`, `next_unaligned`, and `prev_unaligned` accept a `[count]`. With the default keymaps `3J` moves three chunks down and `2K` two chunks up; from the command line use `:Interlaced navigate_down 3` or `:Interlaced next_unaligned 2`. For the two `unaligned` actions the count is the number of *unaligned* chunks to skip; if fewer remain than requested, the cursor stops on the furthest one found and a message reports the shortfall.
+
 ## Development
 
 ```sh
@@ -227,14 +238,14 @@ node deepseek/server.mjs --port 8765
 | **:Interlaced push_down_right_part [lineno [colno]]**  | moves the text rightside of column `colno` at line `lineno` down to its counterpart at the chunk below, leaving lineno `lineno` with the text leftside of column `colno`. Subsequent counterpart lines are moved down correspondingly. Works on the current line if `lineno` is not provided. Uses cursor position if `colno` is not provided. |
 | **:Interlaced push_down [lineno]**  | ibidem but moves down the whole line `lineno`, leaving it as empty. |
 | **:Interlaced leave_alone [lineno]**  | pushes down all lines (except the cursor line) in the chunk where `lineno` is at, puts a `-` as placeholder at each, and moves cursor down to the next chunk. Works on the cursor chunk if `lineno` is not provided. |
-| **:Interlaced next_unaligned**  | moves cursor down to the chunk that has different kinds of highlighted matches across its lines. |
-| **:Interlaced prev_unaligned**  | ibidem but moves cursor up. |
+| **:Interlaced next_unaligned [count]**  | moves cursor down to the `[count]`th chunk (default: the next one) that has different kinds of highlighted matches across its lines. |
+| **:Interlaced prev_unaligned [count]**  | ibidem but moves cursor up. |
 | **:Interlaced set_lang_num {num}**  | changes `lang_num`, i.e., how many lines should be in each chunk. This affects re-positioning actions (`Interlaced push_up(_pair)`, `Interlaced pull_below(_pair)`, `Interlaced push_down(_right_part)`, and `Interlaced leave_alone`). When called without argument or with a single `?` it shows the current value. |
 | **:Interlaced set_separator {num} {str}**  | changes sentence separator to `str` for the `num`th language, i.e., what should be inserted between on `ItPushUp(Pair|LeftPart)?` and `ItPullBelow(Pair)?`. When called without argument or with a single `?` it shows current values.  |
-| **:Interlaced navigate_down**  | moves cursor down by `lang_num + 1` lines. |
-| **:Interlaced navigate_up**  | moves cursor up by `lang_num + 1` lines. |
+| **:Interlaced navigate_down [count]**  | moves cursor down by `count * (lang_num + 1)` lines; `count` defaults to 1. |
+| **:Interlaced navigate_up [count]**  | moves cursor up by `count * (lang_num + 1)` lines; `count` defaults to 1. |
 | **:Interlaced undo**  | undoes the last re-positioning action. The undo list remembers at most `undo_limit` (default 100) re-positionings and forgets oldest ones thereafter. A non-positive `undo_limit` makes the list unlimited. It costs too much RAM to remember changes of an interlaced buffer, because re-positioning affects every counterpart line from the cursor below, and the builtin *undo history* stores all of that. One `Interlaced push_up` at the beginning of an interlaced buffer with 190k lines increases memory use by 100M. To avoid memory creep, the plugin has an isolated *operation history* for re-positioning operations (`Interlaced push_up(_pair)`, `Interlaced pull_below(_pair)`, `Interlaced push_down(_right_part)`, and `Interlaced leave_alone`). It disables the builtin *undo history* recording before a re-positioning operation is called, appends the operation to its *operation history*, and enables the *undo history* afterwards. Note that the builtin *undo history* is cleared every time an re-positioning operation is called. Use `:Interlaced undo` to undo a re-positioning operation. Use the traditional `u` to undo normal text changes like inserting, pasting, etc. |
 | **:Interlaced redo**  | undoes the last `Interlaced undo`. |
-| **:Interlaced toggle_chunk_number**  | shows/hides chunk number at intervals. |
+| **:Interlaced toggle_chunk_number**  | shows/hides chunk numbers on the separator lines. With `relativenumber` on, the cursor chunk is absolute and the other visible chunks are relative to it; with it off, all chunks are absolute. |
 | **:Interlaced dump [filepath]**  | saves workspace to `filepath`: cursor position, matches, language separator, and `lang_num`. Undo and redo lists are not saved. Uses `./.interlaced.json` when called without argument. |
 | **:Interlaced load [filepath]**  | loads workspace from `filepath`. Uses `./.interlaced.json` when called without argument. |

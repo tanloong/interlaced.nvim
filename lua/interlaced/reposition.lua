@@ -776,31 +776,32 @@ M.action.redo = function(a)
   end
 end
 
+---Count from a keymap (`3J`) or from the command line (`:Interlaced navigate_down 3`).
+---@param a table|nil
+---@return integer
+_H.action_count = function(a)
+  local count
+  if a == nil then
+    count = vim.v.count1
+  else
+    count = tonumber(a.count)
+    if (count == nil or count <= 0) and type(a.fargs) == "table" then
+      count = tonumber(a.fargs[1])
+    end
+  end
+  if count == nil or count <= 0 then return 1 end
+  return math.floor(count)
+end
+
 ---Move cursor to the chunk below at the counterpart of current line
 M.action.navigate_down = function(a)
-  local c
-  if a == nil then
-    --called from keymapping
-    --reference: https://www.reddit.com/r/vim/comments/bj0fip/comment/em4i23z/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button
-    c = vim.v.count1
-  else
-    --called from command-line
-    c = a.count ~= nil and a.count or 1
-  end
+  local c = _H.action_count(a)
   vim_cmd(("normal! 0%sj"):format(c * (M.config.lang_num + 1)))
 end
 
 ---Move cursor to the chunk above at the counterpart of current line
 M.action.navigate_up = function(a)
-  local c
-  if a == nil then
-    --called from keymapping
-    --reference: https://www.reddit.com/r/vim/comments/bj0fip/comment/em4i23z/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button
-    c = vim.v.count1
-  else
-    --called from command-line
-    c = a.count ~= nil and a.count or 1
-  end
+  local c = _H.action_count(a)
   vim_cmd(("normal! 0%sk"):format(c * (M.config.lang_num + 1)))
 end
 
@@ -952,56 +953,72 @@ _H.group_count = function(line)
   return ret
 end
 
----Search the first unaligned chunk below/above current chunk and place the cursor on
----its first line.
+---@param buf integer
+---@param l integer first line of a chunk
+---@return boolean
+_H.chunk_unaligned = function(buf, l)
+  local chunk_lines = vim_api.nvim_buf_get_lines(buf, l - 1, l - 1 + M.config.lang_num, false)
+  for i, line1 in ipairs(chunk_lines) do
+    local group_count1 = _H.group_count(line1)
+    -- Note: `vim.iter()` scans table input to decide if it is a list or a dict; to
+    -- avoid this cost you can wrap the table with an iterator e.g.
+    -- `vim.iter(ipairs({…}))`
+    for _, line2 in vim.iter(ipairs(chunk_lines)):skip(i) do
+      local group_count2 = _H.group_count(line2)
+      if vim.tbl_count(group_count1) ~= vim.tbl_count(group_count2) then return true end
+      for group in pairs(group_count1) do
+        if group_count2[group] == nil then return true end
+      end
+    end
+  end
+  return false
+end
+
+---@param l integer
+---@param from integer
+_H.jump_to_unaligned = function(l, from)
+  vim_api.nvim_win_set_cursor(0, { l, 1 })
+  vim_cmd "normal! zz"
+  logger.info(("Jumped over %s lines"):format(math.abs(l - from)))
+end
+
+---Search the first `count`-th unaligned chunk below/above current chunk and place
+---the cursor on its first line.
 ---@param direction `1`|`-1`
-_H.locate_unaligned = function(direction)
+---@param count integer|nil
+_H.locate_unaligned = function(direction, count)
+  count = math.max(1, math.floor(tonumber(count) or 1))
   local buf = vim_api.nvim_get_current_buf()
   local lineno_orig = vim_fn.line(".")
-  -- Add `direction * (lang_num + 1)` to start searching from the next chunk.
-  -- This prevents the cursor from remaining on the same unaligned chunk if the
-  -- function is called multiple times. If a search returns a false positive
-  -- and places the cursor on an aligned chunk, calling this function again
-  -- allows the cursor to move forward instead of staying.
-  local lineno = lineno_orig + direction * (M.config.lang_num + 1)
-  -- locate first line of the nearest chunk below/above and start search from there
-  while lineno % (M.config.lang_num + 1) ~= 1 do lineno = lineno + direction end
+  local chunk_size = M.config.lang_num + 1
+  -- Start with the chunk strictly below/above the current one. Compute its
+  -- first line directly so a cursor in the middle of a chunk (or on its
+  -- separator) does not skip the adjacent chunk.
+  local lineno = (math.floor((lineno_orig - 1) / chunk_size) + direction) * chunk_size + 1
   local lastline = direction == 1 and vim_api.nvim_buf_line_count(0) or 1
 
-  local chunk_lines
-  local group_count1, group_count2
-  for l = lineno, lastline, direction * (M.config.lang_num + 1) do
-    chunk_lines = vim_api.nvim_buf_get_lines(buf, l - 1, l - 1 + M.config.lang_num, false)
-    for i, line1 in ipairs(chunk_lines) do
-      group_count1 = _H.group_count(line1)
-      -- Note: `vim.iter()` scans table input to decide if it is a list or a dict; to
-      -- avoid this cost you can wrap the table with an iterator e.g.
-      -- `vim.iter(ipairs({…}))`
-      for _, line2 in vim.iter(ipairs(chunk_lines)):skip(i) do
-        group_count2 = _H.group_count(line2)
-
-        if vim.tbl_count(group_count1) ~= vim.tbl_count(group_count2) then
-          vim_api.nvim_win_set_cursor(0, { l, 1 })
-          vim_cmd "normal! zz"
-          logger.info(("Jumped over %s lines"):format(math.abs(l - lineno_orig)))
-          return
-        end
-        for k1, _ in pairs(group_count1) do
-          if group_count2[k1] == nil then
-            vim_api.nvim_win_set_cursor(0, { l, 1 })
-            vim_cmd "normal! zz"
-            logger.info(("Jumped over %s lines"):format(math.abs(l - lineno_orig)))
-            return
-          end
-        end
+  local found = 0
+  local last_found
+  for l = lineno, lastline, direction * chunk_size do
+    if _H.chunk_unaligned(buf, l) then
+      found = found + 1
+      last_found = l
+      if found >= count then
+        _H.jump_to_unaligned(l, lineno_orig)
+        return
       end
     end
   end
 
-  vim.print("Not Found")
+  if last_found then
+    _H.jump_to_unaligned(last_found, lineno_orig)
+    logger.info(("Only found %d of %d unaligned chunk(s)"):format(found, count))
+  else
+    vim.print("Not Found")
+  end
 end
 
-M.action.next_unaligned = function() _H.locate_unaligned(1) end
-M.action.prev_unaligned = function() _H.locate_unaligned(-1) end
+M.action.next_unaligned = function(a) _H.locate_unaligned(1, _H.action_count(a)) end
+M.action.prev_unaligned = function(a) _H.locate_unaligned(-1, _H.action_count(a)) end
 
 return M

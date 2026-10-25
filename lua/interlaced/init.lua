@@ -28,6 +28,7 @@ local M = {
   _orig_mappings = {},   -- [bufnr] = list of mappings replaced by enable_keybindings
   _is_mappings_on = {},  -- [bufnr] = boolean
   _showing_chunknr = {}, -- [bufnr] = boolean
+  _chunknr_state = {},   -- [bufnr] = last drawn range/mode
   _ns_id = nil,
   action = {},
 }
@@ -43,6 +44,7 @@ vim_api.nvim_create_autocmd("BufDelete", {
     M._orig_mappings[args.buf] = nil
     M._is_mappings_on[args.buf] = nil
     M._showing_chunknr[args.buf] = nil
+    M._chunknr_state[args.buf] = nil
   end,
 })
 
@@ -239,28 +241,100 @@ M.ShowChunkNr = function()
   if M._showing_chunknr[buf] == true then return end
   if M._ns_id == nil then M._ns_id = vim_api.nvim_create_namespace("interlaced") end
 
+  M._showing_chunknr[buf] = true
+  M._chunknr_state[buf] = nil
+  M.RefreshChunkNr()
+end
+
+---Redraw the chunk numbers of the current buffer. In absolute mode every chunk
+---is numbered once; with `relativenumber` on, only the chunks visible in the
+---current window are numbered, with the cursor chunk absolute and the others
+---relative to it.
+M.RefreshChunkNr = function()
+  local buf = vim_api.nvim_get_current_buf()
+  if M._showing_chunknr[buf] ~= true then return end
+  if M._ns_id == nil then M._ns_id = vim_api.nvim_create_namespace("interlaced") end
+
+  local relative = vim.wo.relativenumber == true
+  local chunk_size = config.lang_num + 1
   local last_lineno = vim_api.nvim_buf_line_count(buf)
-  local opts = { right_gravity = true, virt_text_win_col = 0, hl_mode = "combine" }
-  local chunkno = 1
-  -- nvim_buf_set_extmark uses 0-based, end-exclusive index, thus - 1
-  for lineno = 0, last_lineno - 2 * config.lang_num, config.lang_num + 1 do
-    opts.virt_text = { { string.format("%s ", chunkno), "LineNr" } }
-    vim_api.nvim_buf_set_extmark(buf, M._ns_id, lineno + config.lang_num, 0, opts)
-    chunkno = chunkno + 1
+  local first_line = math.max(1, vim_fn.line("w0"))
+  local last_line = math.max(first_line, vim_fn.line("w$"))
+  local cursor_line = vim_fn.line(".")
+  local current_chunk = math.floor((cursor_line - 1) / chunk_size) + 1
+
+  -- A chunk number lives on the blank separator after the chunk, so chunk `n`
+  -- needs line `n * chunk_size` to exist.
+  local first_mark, last_mark
+  if relative then
+    first_mark = math.max(1, math.ceil(first_line / chunk_size))
+    last_mark = math.min(math.floor(last_lineno / chunk_size), math.floor(last_line / chunk_size))
+  else
+    first_mark = 1
+    last_mark = math.floor(last_lineno / chunk_size)
   end
 
-  M._showing_chunknr[buf] = true
+  local mode = relative and "relative" or "absolute"
+  local state = M._chunknr_state[buf]
+  if state
+    and state.mode == mode
+    and state.first == first_mark
+    and state.last == last_mark
+    and state.lang_num == config.lang_num
+    and state.line_count == last_lineno
+    and (not relative or state.current == current_chunk) then
+    return
+  end
+
+  vim_api.nvim_buf_clear_namespace(buf, M._ns_id, 0, -1)
+  if first_mark <= last_mark then
+    local opts = { right_gravity = true, virt_text_win_col = 0, hl_mode = "combine" }
+    for chunkno = first_mark, last_mark do
+      local label = chunkno
+      if relative and chunkno ~= current_chunk then
+        label = math.abs(chunkno - current_chunk)
+      end
+      opts.virt_text = { { string.format("%s ", label), "LineNr" } }
+      vim_api.nvim_buf_set_extmark(buf, M._ns_id, chunkno * chunk_size - 1, 0, opts)
+    end
+  end
+
+  M._chunknr_state[buf] = {
+    mode = mode,
+    first = first_mark,
+    last = last_mark,
+    current = current_chunk,
+    lang_num = config.lang_num,
+    line_count = last_lineno,
+  }
 end
 
 M.ClearChunkNr = function()
   local buf = vim_api.nvim_get_current_buf()
-  if M._ns_id == nil then return end
-
-  for _, m in ipairs(vim_api.nvim_buf_get_extmarks(buf, M._ns_id, 0, -1, {})) do
-    vim_api.nvim_buf_del_extmark(buf, M._ns_id, m[1])
+  if M._ns_id ~= nil then
+    vim_api.nvim_buf_clear_namespace(buf, M._ns_id, 0, -1)
   end
   M._showing_chunknr[buf] = false
+  M._chunknr_state[buf] = nil
 end
+
+local chunknr_group = vim_api.nvim_create_augroup("interlaced_chunknr", { clear = true })
+local function refresh_chunknr()
+  if M._showing_chunknr[vim_api.nvim_get_current_buf()] then M.RefreshChunkNr() end
+end
+vim_api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI", "WinScrolled" }, {
+  group = chunknr_group,
+  callback = refresh_chunknr,
+})
+vim_api.nvim_create_autocmd("OptionSet", {
+  group = chunknr_group,
+  pattern = "relativenumber",
+  callback = refresh_chunknr,
+})
+vim_api.nvim_create_autocmd({ "BufWinEnter", "WinEnter", "VimResized" }, {
+  group = chunknr_group,
+  callback = refresh_chunknr,
+})
 
 M.action.toggle_chunk_number = function()
   local buf = vim_api.nvim_get_current_buf()
