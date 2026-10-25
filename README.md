@@ -43,7 +43,7 @@ vim.g.interlaced = {
     { "n", "K", "navigate_up"},
     { "n", "md", "dump"},
     { "n", "ml", "load"},
-    { "n", "gn", "startlux"},
+    { "n", "gn", "startlux_op"},
     { "n", "mt", "match_toggle"},
     { "n", "m;", "list_matches"},
     { "n", "ma", "match_add"},
@@ -82,15 +82,15 @@ vim.g.interlaced = {
 
 ## Finding the first unaligned pair
 
-`:Interlaced startlux` looks at the window, asks the StartLux Decision API for the **first** chunk whose Chinese and English do not match, then puts the cursor on it and flashes it for `highlight_ms`. With the default keymaps it is bound to `gn`.
+`:Interlaced startlux_op` looks at the window, asks the StartLux Decision API for the **first** chunk whose Chinese and English do not match, then sends a second, focused request containing the previous/current/next chunks and asks for one **whole-line, pair, or inline** operation: `push_up`, `pull_below`, `push_down`, `push_up_pair`, `pull_below_pair`, `push_up_left_part`, `push_down_right_part`, or `leave_alone`. It only suggests the operation — the cursor is moved to the target line (and split column) and the pair flashes, but the buffer is not modified. This makes it easy to try the suggestion with the normal keymaps and undo it if needed. With the default keymaps it is bound to `gn`.
 
-Only the first unaligned chunk is asked for on purpose: a boundary error shifts every later chunk by one, so once the first one is fixed everything below it lines up again. The request is a single `choice` question over the chunks in the window, so the round trip stays short.
+Only the first unaligned chunk is asked for on purpose: a boundary error shifts every later chunk by one, so once the first one is fixed everything below it lines up again. The locating request is a single `choice` question over the chunks in the window, so the round trip stays short.
 
-`:Interlaced startlux_op` goes one step further: after locating the first unpair it sends a second, focused request containing the previous/current/next chunks and asks for one **whole-line or pair** operation: `push_up`, `pull_below`, `push_down`, `push_up_pair`, `pull_below_pair`, or `leave_alone`. It only suggests the operation — the cursor is moved to the target line and the pair flashes, but the buffer is not modified. This makes it easy to try the suggestion with the normal keymaps and undo it if needed. Partial-line operations (`push_up_left_part` / `push_down_right_part`) are not part of this command yet.
+For an inline operation (`push_up_left_part` / `push_down_right_part`), a third, tiny request picks the split point from the safe candidates of the target line. Chinese lines allow every character boundary; English lines only offer word starts, so a word is never cut in half. Punctuation and common Chinese discourse markers are kept first when the candidate list is capped by `split_max_options`.
 
-`:Interlaced startlux_apply` runs the same two requests and executes the suggested operation (still whole-line/pair only), so `:Interlaced undo` can revert it. If the window contains no unpair, it scrolls one page forward with `<C-F>` instead, without going through user mappings; run it again to continue from the new page.
+`:Interlaced startlux_apply` runs the same requests and executes the suggested operation (whole-line, pair, or inline), so `:Interlaced undo` can revert it. If the window contains no unaligned chunk (chunks cut by the window edges are ignored), it scrolls one page forward with `<C-F>` instead, without going through user mappings; run it again to continue from the new page.
 
-`startlux` makes one request; `startlux_op` and `startlux_apply` make two. They all go to `POST {base_url}/decisions`, the same endpoint the OpenCode `startlux_decision` tool uses. The key is read from `$BAMBOO_API_KEY`, `$STARTLUX_API_KEY`, the `api_key` option, then `~/.config/opencode/bamboo-api-key`.
+`startlux_op` and `startlux_apply` make two requests, or three when the suggestion is an inline operation. They all go to `POST {base_url}/decisions`, the same endpoint the OpenCode `startlux_decision` tool uses. The key is read from `$BAMBOO_API_KEY`, `$STARTLUX_API_KEY`, the `api_key` option, then `~/.config/opencode/bamboo-api-key`.
 
 `:Interlaced startlux_prompt` opens a scratch buffer with the exact first-unpair request (the numbered window and the one question), which is handy for inspecting or pasting the prompt elsewhere.
 
@@ -98,13 +98,12 @@ This feature is self-contained in its own file, `lua/interlaced/startlux.lua`, w
 
 | command | description |
 | - | - |
-| **:Interlaced startlux**  | asks StartLux for the first unaligned chunk, jumps to it and flashes it. |
-| **:Interlaced startlux_op**  | locates the first unpair, then suggests a whole-line/pair operation and moves the cursor to its target line. Does not modify the buffer. |
-| **:Interlaced startlux_apply**  | locates the first unpair and applies the suggested whole-line/pair operation. Pages down with `<C-F>` when the window has no unpair. |
+| **:Interlaced startlux_op**  | locates the first unpair, suggests a whole-line/pair/inline operation, and moves the cursor to its target line (and split column). Does not modify the buffer. |
+| **:Interlaced startlux_apply**  | locates the first unpair and applies the suggested whole-line/pair/inline operation. Pages down with `<C-F>` when the window has no unpair. |
 | **:Interlaced startlux_cancel**  | drops the in-flight request. |
 | **:Interlaced startlux_prompt**  | shows the first-unpair request that would be sent, in a scratch buffer. |
 
-`startlux` is bound to `gn` by default; `startlux_op` and `startlux_apply` are not bound. Add them to `vim.g.interlaced.keymaps` if you want keys, e.g. `{ "n", "<leader>o", "startlux_op" }` and `{ "n", "<leader>a", "startlux_apply" }`.
+`startlux_op` is bound to `gn` by default; `startlux_apply` is not bound. Add it to `vim.g.interlaced.keymaps` if you want a key, e.g. `{ "n", "<leader>a", "startlux_apply" }`.
 
 Options live in `vim.g.interlaced.startlux` (the flat `vim.g.interlaced_startlux` works too):
 
@@ -120,6 +119,7 @@ Options live in `vim.g.interlaced.startlux` (the flat `vim.g.interlaced_startlux
 | `highlight_ms` | `1200` | how long the pair stays highlighted |
 | `highlight_group` | `"InterlacedUnpairFlash"` | highlight group of the flashed lines (linked to `IncSearch`) |
 | `max_options` | `80` | how many chunks are offered as choices; longer windows are cut off |
+| `split_max_options` | `60` | how many split points are offered for an inline operation |
 
 ```lua
 vim.g.interlaced = {

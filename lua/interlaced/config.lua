@@ -16,7 +16,7 @@ local default = {
     {"n", "K", "navigate_up"},
     {"n", "md", "dump"},
     {"n", "ml", "load"},
-    {"n", "gn", "startlux"},
+    {"n", "gn", "startlux_op"},
     {"n", "mt", "match_toggle"},
     {"n", "m;", "list_matches"},
     {"n", "ma", "match_add"},
