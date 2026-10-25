@@ -188,12 +188,12 @@ With `auto_start`, the service is a detached child of Neovim, so it inherits Neo
 
 ## Chunk numbers and counted navigation
 
-`:Interlaced toggle_chunk_number` (or `require "interlaced".ShowChunkNr()` in your config) writes the chunk number onto the blank separator after each chunk. The labels follow `relativenumber`:
+`:Interlaced toggle_chunk_number` (or `require "interlaced".ShowChunkNr()` in your config) writes the chunk number onto the blank separator after each chunk. The numbers are absolute by default; `:Interlaced toggle_chunk_number_relative` switches them between absolute and relative for all buffers:
 
-- `relativenumber` on: the chunk containing the cursor shows its absolute number, and every other chunk visible in the window shows its distance from the cursor chunk, like Vim's relative line numbers. A chunk labelled `2` is two chunks away, so `2J` or `2K` jumps to it.
-- `relativenumber` off: every chunk shows its absolute number.
+- absolute: every chunk shows its absolute number.
+- relative: the chunk containing the cursor shows its absolute number, and every other chunk visible in the window shows its distance from the cursor chunk. A chunk labelled `2` is two chunks away, so `2J` or `2K` jumps to it.
 
-The labels are refreshed on cursor movement, scrolling, window resizing, and `:set relative` / `:set norelative`.
+Showing chunk numbers also turns off the system `number` and `relativenumber` columns in every window displaying the buffer, so only the plugin's virtual text remains. The labels are refreshed on cursor movement, scrolling, and window resizing; they do not depend on the system options.
 
 `navigate_down`, `navigate_up`, `next_unaligned`, and `prev_unaligned` accept a `[count]`. With the default keymaps `3J` moves three chunks down and `2K` two chunks up; from the command line use `:Interlaced navigate_down 3` or `:Interlaced next_unaligned 2`. For the two `unaligned` actions the count is the number of *unaligned* chunks to skip; if fewer remain than requested, the cursor stops on the furthest one found and a message reports the shortfall.
 
@@ -246,6 +246,7 @@ node deepseek/server.mjs --port 8765
 | **:Interlaced navigate_up [count]**  | moves cursor up by `count * (lang_num + 1)` lines; `count` defaults to 1. |
 | **:Interlaced undo**  | undoes the last re-positioning action. The undo list remembers at most `undo_limit` (default 100) re-positionings and forgets oldest ones thereafter. A non-positive `undo_limit` makes the list unlimited. It costs too much RAM to remember changes of an interlaced buffer, because re-positioning affects every counterpart line from the cursor below, and the builtin *undo history* stores all of that. One `Interlaced push_up` at the beginning of an interlaced buffer with 190k lines increases memory use by 100M. To avoid memory creep, the plugin has an isolated *operation history* for re-positioning operations (`Interlaced push_up(_pair)`, `Interlaced pull_below(_pair)`, `Interlaced push_down(_right_part)`, and `Interlaced leave_alone`). It disables the builtin *undo history* recording before a re-positioning operation is called, appends the operation to its *operation history*, and enables the *undo history* afterwards. Note that the builtin *undo history* is cleared every time an re-positioning operation is called. Use `:Interlaced undo` to undo a re-positioning operation. Use the traditional `u` to undo normal text changes like inserting, pasting, etc. |
 | **:Interlaced redo**  | undoes the last `Interlaced undo`. |
-| **:Interlaced toggle_chunk_number**  | shows/hides chunk numbers on the separator lines. With `relativenumber` on, the cursor chunk is absolute and the other visible chunks are relative to it; with it off, all chunks are absolute. |
+| **:Interlaced toggle_chunk_number**  | shows/hides chunk numbers on the separator lines. The numbers are absolute by default; use `toggle_chunk_number_relative` for relative numbers. |
+| **:Interlaced toggle_chunk_number_relative**  | switches chunk numbers between absolute and relative for all buffers. In relative mode the cursor chunk is absolute and the other visible chunks are relative to it. |
 | **:Interlaced dump [filepath]**  | saves workspace to `filepath`: cursor position, matches, language separator, and `lang_num`. Undo and redo lists are not saved. Uses `./.interlaced.json` when called without argument. |
 | **:Interlaced load [filepath]**  | loads workspace from `filepath`. Uses `./.interlaced.json` when called without argument. |

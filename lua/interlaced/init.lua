@@ -28,6 +28,7 @@ local M = {
   _orig_mappings = {},   -- [bufnr] = list of mappings replaced by enable_keybindings
   _is_mappings_on = {},  -- [bufnr] = boolean
   _showing_chunknr = {}, -- [bufnr] = boolean
+  _chunknr_relative = false, -- global: show relative chunk numbers
   _chunknr_state = {},   -- [bufnr] = last drawn range/mode
   _ns_id = nil,
   action = {},
@@ -236,8 +237,19 @@ M.action.disable_keybindings = function()
   M._orig_mappings[buf] = {}
 end
 
+---Show only the plugin's chunk numbers: turn off the system line-number
+---columns in every window displaying `buf`.
+---@param buf integer
+_H.disable_system_linenumbers = function(buf)
+  for _, win in ipairs(vim_fn.win_findbuf(buf)) do
+    vim.wo[win].number = false
+    vim.wo[win].relativenumber = false
+  end
+end
+
 M.ShowChunkNr = function()
   local buf = vim_api.nvim_get_current_buf()
+  _H.disable_system_linenumbers(buf)
   if M._showing_chunknr[buf] == true then return end
   if M._ns_id == nil then M._ns_id = vim_api.nvim_create_namespace("interlaced") end
 
@@ -247,15 +259,15 @@ M.ShowChunkNr = function()
 end
 
 ---Redraw the chunk numbers of the current buffer. In absolute mode every chunk
----is numbered once; with `relativenumber` on, only the chunks visible in the
----current window are numbered, with the cursor chunk absolute and the others
----relative to it.
+---is numbered once; in relative mode only the chunks visible in the current
+---window are numbered, with the cursor chunk absolute and the others relative
+---to it.
 M.RefreshChunkNr = function()
   local buf = vim_api.nvim_get_current_buf()
   if M._showing_chunknr[buf] ~= true then return end
   if M._ns_id == nil then M._ns_id = vim_api.nvim_create_namespace("interlaced") end
 
-  local relative = vim.wo.relativenumber == true
+  local relative = M._chunknr_relative == true
   local chunk_size = config.lang_num + 1
   local last_lineno = vim_api.nvim_buf_line_count(buf)
   local first_line = math.max(1, vim_fn.line("w0"))
@@ -322,16 +334,26 @@ local chunknr_group = vim_api.nvim_create_augroup("interlaced_chunknr", { clear 
 local function refresh_chunknr()
   if M._showing_chunknr[vim_api.nvim_get_current_buf()] then M.RefreshChunkNr() end
 end
+local function enter_chunknr_window()
+  local buf = vim_api.nvim_get_current_buf()
+  if M._showing_chunknr[buf] then
+    _H.disable_system_linenumbers(buf)
+    M.RefreshChunkNr()
+  end
+end
 vim_api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI", "WinScrolled" }, {
   group = chunknr_group,
   callback = refresh_chunknr,
 })
-vim_api.nvim_create_autocmd("OptionSet", {
+vim_api.nvim_create_autocmd("BufWinEnter", {
   group = chunknr_group,
-  pattern = "relativenumber",
+  callback = enter_chunknr_window,
+})
+vim_api.nvim_create_autocmd("WinEnter", {
+  group = chunknr_group,
   callback = refresh_chunknr,
 })
-vim_api.nvim_create_autocmd({ "BufWinEnter", "WinEnter", "VimResized" }, {
+vim_api.nvim_create_autocmd("VimResized", {
   group = chunknr_group,
   callback = refresh_chunknr,
 })
@@ -343,6 +365,26 @@ M.action.toggle_chunk_number = function()
   else
     M.ShowChunkNr()
   end
+end
+
+---Switch the chunk numbers between absolute and relative.
+M.action.toggle_chunk_number_relative = function()
+  M._chunknr_relative = not M._chunknr_relative
+  local current_win = vim_api.nvim_get_current_win()
+  local wins = { current_win }
+  for _, win in ipairs(vim_api.nvim_list_wins()) do
+    if win ~= current_win then table.insert(wins, win) end
+  end
+  local refreshed = {}
+  for _, win in ipairs(wins) do
+    local buf = vim_api.nvim_win_get_buf(win)
+    if M._showing_chunknr[buf] and not refreshed[buf] then
+      refreshed[buf] = true
+      M._chunknr_state[buf] = nil
+      vim_api.nvim_win_call(win, function() M.RefreshChunkNr() end)
+    end
+  end
+  logger.info(("Chunk numbers: %s"):format(M._chunknr_relative and "relative" or "absolute"))
 end
 
 M.action.set_separator = function(a)
