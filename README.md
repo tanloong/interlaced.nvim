@@ -43,8 +43,7 @@ vim.g.interlaced = {
     { "n", "K", "navigate_up"},
     { "n", "md", "dump"},
     { "n", "ml", "load"},
-    { "n", "gn", "next_unaligned"},
-    { "n", "gN", "prev_unaligned"},
+    { "n", "gn", "startlux"},
     { "n", "mt", "match_toggle"},
     { "n", "m;", "list_matches"},
     { "n", "ma", "match_add"},
@@ -81,57 +80,52 @@ vim.g.interlaced = {
 
 `:checkhealth interlaced` reports the active configuration and whether the Neovim version and options are valid.
 
-## Asking DeepSeek about the current window
+## Finding the first unaligned pair
 
-`:InterlacedDeepseek` sends three things to a DeepSeek chat page in your browser:
+`:Interlaced startlux` looks at the window, asks the StartLux Decision API for the **first** chunk whose Chinese and English do not match, then puts the cursor on it and flashes it for `highlight_ms`. With the default keymaps it is bound to `gn`.
 
-1. the local prompt file (`p.md` by default),
-2. the lines currently visible in the window, and
-3. the cursor line with a `|` marking the cursor column,
+Only the first unaligned chunk is asked for on purpose: a boundary error shifts every later chunk by one, so once the first one is fixed everything below it lines up again. The request is a single `choice` question over the chunks in the window, so the round trip stays short.
 
-and that is all it does — the text is typed into the page and sent, and you read DeepSeek's answer in that tab. Nothing is fetched back, so no window is opened and Neovim stays responsive.
+`:Interlaced startlux_prompt` opens a scratch buffer with the exact JSON request (the numbered window and the one question), which is handy for inspecting or pasting the prompt elsewhere.
 
-The browser half lives in [`deepseek/`](deepseek/README.md): a dependency-free Node service plus an unpacked extension that types into the page and presses send. Set it up once:
+The request goes to `POST {base_url}/decisions`, the same endpoint the OpenCode `startlux_decision` tool uses. The key is read from `$BAMBOO_API_KEY`, `$STARTLUX_API_KEY`, the `api_key` option, then `~/.config/opencode/bamboo-api-key`.
 
-```sh
-node deepseek/server.mjs   # or let Neovim start it for you
-```
-
-Load `deepseek/extension` through `edge://extensions` → Developer mode → Load unpacked, then keep a `chat.deepseek.com` tab open.
-
-This feature is self-contained in its own file, `lua/interlaced/deepseek.lua`, which `require "interlaced"` loads along with everything else — there is nothing to add to your config. The module also works standalone (`require "interlaced.deepseek"`) if you want the two commands without the rest of the plugin.
+This feature is self-contained in its own file, `lua/interlaced/startlux.lua`, which `require "interlaced"` loads along with everything else — there is nothing to add to your config. The module also works standalone (`require "interlaced.startlux"`).
 
 | command | description |
 | - | - |
-| **:InterlacedDeepseek [instruction]**  | sends the prompt file, the visible window and the cursor line to DeepSeek and presses send in the browser tab. An argument is appended to the prompt file as an extra instruction. |
-| **:InterlacedDeepseekStatus**  | reports whether the service is running and which DeepSeek page is connected. |
+| **:Interlaced startlux**  | asks StartLux for the first unaligned chunk, jumps to it and flashes it. |
+| **:Interlaced startlux_cancel**  | drops the in-flight request. |
+| **:Interlaced startlux_prompt**  | shows the request that would be sent, in a scratch buffer. |
 
-Options live in `vim.g.interlaced.deepseek` (the flat `vim.g.interlaced_deepseek` works too):
+Options live in `vim.g.interlaced.startlux` (the flat `vim.g.interlaced_startlux` works too):
 
 | option | default | description |
 | - | - | - |
-| `host` | `"127.0.0.1"` | where the bridge listens |
-| `port` | `8765` | must match the service and `deepseek/extension/content.js` |
-| `prompt_file` | `"p.md"` | sent as the prompt; a relative path is looked up in the current directory and then next to the buffer |
-| `auto_start` | `true` | start `node deepseek/server.mjs` when the service is not running yet |
-| `node` | `"node"` | Node.js executable used by `auto_start` |
-| `server_script` | `<repo>/deepseek/server.mjs` | script run by `auto_start` |
-| `log_file` | `nil` | file the auto-started service writes its log to; `nil` uses a timestamped file in the temp directory (the path is reported in the notification) |
-| `timeout_ms` | `15000` | how long the browser page may take to type the text and press send |
-| `status_timeout_ms` | `5000` | how long `:InterlacedDeepseekStatus` waits for the service |
+| `base_url` | `"https://api.bamboonode.dev/v1"` | OpenAI-compatible base URL; `/decisions` is appended |
+| `model` | `"startlux-decision-27b-autothink"` | model id sent in the request body |
+| `api_key` | `nil` | bearer token; `nil` falls back to the environment and `key_file` |
+| `key_file` | `"~/.config/opencode/bamboo-api-key"` | read when no environment variable or `api_key` is set |
+| `think_mode` | `"never"` | `"auto"` lets the model think when unsure, at the cost of latency |
+| `timeout_s` | `20` | how long curl may take for the whole request |
+| `curl` | `"curl"` | curl executable used for the HTTPS call |
+| `highlight_ms` | `1200` | how long the pair stays highlighted |
+| `highlight_group` | `"InterlacedUnpairFlash"` | highlight group of the flashed lines (linked to `IncSearch`) |
+| `max_options` | `80` | how many chunks are offered as choices; longer windows are cut off |
 
 ```lua
 vim.g.interlaced = {
-  deepseek = {
-    prompt_file = "~/.config/nvim/interlaced-prompt.md",
-    port = 9000,
+  startlux = {
+    think_mode = "auto",
+    highlight_ms = 2000,
   },
 }
 ```
 
-Assign the whole `vim.g.interlaced` table in one go: Neovim hands `vim.g` back as a copy, so `vim.g.interlaced.deepseek.port = 9000` afterwards is silently lost.
+Assign the whole `vim.g.interlaced` table in one go: Neovim hands `vim.g` back as a copy, so `vim.g.interlaced.startlux.think_mode = "auto"` afterwards is silently lost.
 
-With `auto_start`, the service is a detached child of Neovim, so it inherits Neovim's standard output. That is invisible in a terminal, but a launcher that waits for Neovim's output to finish will wait for the service too — start the service yourself (and set `auto_start = false`) if that applies to you.
+The older DeepSeek bridge (`deepseek/`, `lua/interlaced/deepseek.lua`) is no longer required by the plugin; `require "interlaced.deepseek"` still registers `:InterlacedDeepseek` if you want it.
+
 
 ## Development
 
