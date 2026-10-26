@@ -54,6 +54,8 @@ do
   }, chunk_labels(buf))
   check("showing chunk numbers disables the system number column", false, vim.wo.number)
   check("showing chunk numbers disables the system relativenumber column", false, vim.wo.relativenumber)
+  check("absolute mode does not install cursor refresh autocmds", 0,
+    #vim.api.nvim_get_autocmds { group = "interlaced_chunknr_refresh" })
 
   -- the system option must not control the plugin labels
   vim.wo.relativenumber = true
@@ -64,6 +66,15 @@ do
     [9] = "3",
   }, chunk_labels(buf))
   vim.wo.relativenumber = false
+
+  vim.api.nvim_buf_set_lines(buf, -1, -1, false, { "line 10", "line 11", "line 12" })
+  vim.api.nvim_exec_autocmds("TextChanged", { buffer = buf })
+  check("absolute numbers follow line-count changes", {
+    [3] = "1",
+    [6] = "2",
+    [9] = "3",
+    [12] = "4",
+  }, chunk_labels(buf))
 
   init.ClearChunkNr()
 end
@@ -112,6 +123,8 @@ do
   vim.api.nvim_win_set_cursor(0, { 10, 0 }) -- chunk 4
   init.ShowChunkNr()
   vim.cmd "Interlaced toggle_chunk_number_relative"
+  check("relative mode installs cursor refresh autocmds", true,
+    #vim.api.nvim_get_autocmds { group = "interlaced_chunknr_refresh" } > 0)
   check("relative mode numbers the visible chunks around the cursor chunk", {
     [3] = "3",
     [6] = "2",
@@ -123,7 +136,7 @@ do
   }, chunk_labels(buf))
 
   vim.api.nvim_win_set_cursor(0, { 16, 0 }) -- chunk 6
-  init.RefreshChunkNr()
+  vim.api.nvim_exec_autocmds("CursorMoved", { buffer = buf })
   check("the cursor chunk is absolute after moving", {
     [3] = "5",
     [6] = "4",
@@ -159,6 +172,8 @@ do
     [21] = "7",
     [24] = "8",
   }, chunk_labels(buf))
+  check("turning relative off removes cursor refresh autocmds", 0,
+    #vim.api.nvim_get_autocmds { group = "interlaced_chunknr_refresh" })
 
   vim.cmd "Interlaced toggle_chunk_number_relative"
   check("toggling relative back on uses relative numbers again", {

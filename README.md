@@ -193,7 +193,7 @@ With `auto_start`, the service is a detached child of Neovim, so it inherits Neo
 - absolute: every chunk shows its absolute number.
 - relative: the chunk containing the cursor shows its absolute number, and every other chunk visible in the window shows its distance from the cursor chunk. A chunk labelled `2` is two chunks away, so `2J` or `2K` jumps to it.
 
-Showing chunk numbers also turns off the system `number` and `relativenumber` columns in every window displaying the buffer, so only the plugin's virtual text remains. The labels are refreshed on cursor movement, scrolling, and window resizing; they do not depend on the system options.
+Showing chunk numbers also turns off the system `number` and `relativenumber` columns in every window displaying the buffer, so only the plugin's virtual text remains. Absolute mode numbers the whole buffer and only redraws when the line count or `lang_num` changes. Relative mode only draws the visible window, so its cursor/scroll/resize refresh autocmds are installed only while relative mode is on. Neither mode depends on the system options.
 
 `navigate_down`, `navigate_up`, `next_unaligned`, and `prev_unaligned` accept a `[count]`. With the default keymaps `3J` moves three chunks down and `2K` two chunks up; from the command line use `:Interlaced navigate_down 3` or `:Interlaced next_unaligned 2`. For the two `unaligned` actions the count is the number of *unaligned* chunks to skip; if fewer remain than requested, the cursor stops on the furthest one found and a message reports the shortfall.
 

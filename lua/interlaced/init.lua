@@ -331,9 +331,23 @@ M.ClearChunkNr = function()
 end
 
 local chunknr_group = vim_api.nvim_create_augroup("interlaced_chunknr", { clear = true })
+local refresh_group = vim_api.nvim_create_augroup("interlaced_chunknr_refresh", { clear = true })
+
 local function refresh_chunknr()
   if M._showing_chunknr[vim_api.nvim_get_current_buf()] then M.RefreshChunkNr() end
 end
+
+---Absolute numbers cover the whole buffer, so cursor/scroll events are only
+---needed while relative numbers are on.
+local function update_refresh_autocmds()
+  vim_api.nvim_clear_autocmds { group = refresh_group }
+  if not M._chunknr_relative then return end
+  vim_api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI", "WinScrolled", "WinEnter", "VimResized" }, {
+    group = refresh_group,
+    callback = refresh_chunknr,
+  })
+end
+
 local function enter_chunknr_window()
   local buf = vim_api.nvim_get_current_buf()
   if M._showing_chunknr[buf] then
@@ -341,22 +355,28 @@ local function enter_chunknr_window()
     M.RefreshChunkNr()
   end
 end
-vim_api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI", "WinScrolled" }, {
-  group = chunknr_group,
-  callback = refresh_chunknr,
-})
+
+local function refresh_chunknr_after_text_change(args)
+  local buf = args.buf
+  if not M._showing_chunknr[buf] then return end
+  local state = M._chunknr_state[buf]
+  if state ~= nil and state.line_count == vim_api.nvim_buf_line_count(buf) then return end
+  if buf == vim_api.nvim_get_current_buf() then
+    M.RefreshChunkNr()
+  else
+    M._chunknr_state[buf] = nil
+  end
+end
+
 vim_api.nvim_create_autocmd("BufWinEnter", {
   group = chunknr_group,
   callback = enter_chunknr_window,
 })
-vim_api.nvim_create_autocmd("WinEnter", {
+vim_api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "TextChangedP" }, {
   group = chunknr_group,
-  callback = refresh_chunknr,
+  callback = refresh_chunknr_after_text_change,
 })
-vim_api.nvim_create_autocmd("VimResized", {
-  group = chunknr_group,
-  callback = refresh_chunknr,
-})
+update_refresh_autocmds()
 
 M.action.toggle_chunk_number = function()
   local buf = vim_api.nvim_get_current_buf()
@@ -370,6 +390,7 @@ end
 ---Switch the chunk numbers between absolute and relative.
 M.action.toggle_chunk_number_relative = function()
   M._chunknr_relative = not M._chunknr_relative
+  update_refresh_autocmds()
   local current_win = vim_api.nvim_get_current_win()
   local wins = { current_win }
   for _, win in ipairs(vim_api.nvim_list_wins()) do
@@ -487,6 +508,10 @@ M.action.load = function(a)
     -- later mutations (e.g. set_lang_num) invisible to each other
     rpst.config = config
   end
+
+  -- `lang_num` and the cursor may have changed; in absolute mode there is no
+  -- cursor/scroll autocmd to pick this up.
+  M.RefreshChunkNr()
 end
 
 ---@param buf integer
